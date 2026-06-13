@@ -8,6 +8,12 @@ public class OverlapFinderTests
 {
     private readonly OverlapFinder _finder = new();
 
+    private static readonly DateOnly Mon = new(2026, 6, 15);
+    private static readonly DateOnly Tue = new(2026, 6, 16);
+    private static readonly DateOnly Wed = new(2026, 6, 17);
+    private static readonly DateOnly Fri = new(2026, 6, 19);
+    private static readonly DateOnly Sat = new(2026, 6, 20);
+
     [Fact]
     public void Returns_empty_when_no_members()
     {
@@ -20,12 +26,12 @@ public class OverlapFinderTests
     {
         var members = new List<UserAvailability>
         {
-            new("Alice", [new TimeSlot { Day = "monday", StartTime = new TimeOnly(18, 0), EndTime = new TimeOnly(20, 0) }])
+            new("Alice", [new TimeSlot { Day = Mon, StartTime = new TimeOnly(18, 0), EndTime = new TimeOnly(20, 0) }])
         };
 
         var result = _finder.FindBestSlots(members);
         Assert.NotEmpty(result);
-        Assert.Equal("monday", result[0].Day);
+        Assert.Equal(Mon, result[0].Day);
     }
 
     [Fact]
@@ -34,8 +40,8 @@ public class OverlapFinderTests
         var members = new List<UserAvailability>
         {
             new("Alice", [
-                new TimeSlot { Day = "tuesday", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(10, 0) },
-                new TimeSlot { Day = "tuesday", StartTime = new TimeOnly(19, 0), EndTime = new TimeOnly(20, 0) }
+                new TimeSlot { Day = Tue, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(10, 0) },
+                new TimeSlot { Day = Tue, StartTime = new TimeOnly(19, 0), EndTime = new TimeOnly(20, 0) }
             ])
         };
 
@@ -43,7 +49,7 @@ public class OverlapFinderTests
 
         Assert.NotEmpty(result);
         // Evening block should score higher and appear first
-        Assert.Equal("tuesday", result[0].Day);
+        Assert.Equal(Tue, result[0].Day);
         Assert.True(result[0].Start.Hour >= 18);
     }
 
@@ -52,9 +58,9 @@ public class OverlapFinderTests
     {
         var slots = new List<TimeSlot>
         {
-            new() { Day = "monday", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(23, 0) },
-            new() { Day = "tuesday", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(23, 0) },
-            new() { Day = "wednesday", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(23, 0) }
+            new() { Day = Mon, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(23, 0) },
+            new() { Day = Tue, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(23, 0) },
+            new() { Day = Wed, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(23, 0) }
         };
 
         var members = new List<UserAvailability>
@@ -70,8 +76,8 @@ public class OverlapFinderTests
     [Fact]
     public void Slot_with_more_members_scores_higher()
     {
-        var sharedSlot = new TimeSlot { Day = "friday", StartTime = new TimeOnly(19, 0), EndTime = new TimeOnly(21, 0) };
-        var aliceOnly = new TimeSlot { Day = "saturday", StartTime = new TimeOnly(19, 0), EndTime = new TimeOnly(21, 0) };
+        var sharedSlot = new TimeSlot { Day = Fri, StartTime = new TimeOnly(19, 0), EndTime = new TimeOnly(21, 0) };
+        var aliceOnly = new TimeSlot { Day = Sat, StartTime = new TimeOnly(19, 0), EndTime = new TimeOnly(21, 0) };
 
         var members = new List<UserAvailability>
         {
@@ -80,7 +86,7 @@ public class OverlapFinderTests
         };
 
         var result = _finder.FindBestSlots(members);
-        Assert.Equal("friday", result[0].Day);
+        Assert.Equal(Fri, result[0].Day);
         Assert.Equal(2, result[0].MemberCount);
     }
 
@@ -89,7 +95,7 @@ public class OverlapFinderTests
     {
         var slots = new List<TimeSlot>
         {
-            new() { Day = "monday", StartTime = new TimeOnly(18, 0), EndTime = new TimeOnly(23, 0) }
+            new() { Day = Mon, StartTime = new TimeOnly(18, 0), EndTime = new TimeOnly(23, 0) }
         };
         var members = new List<UserAvailability> { new("Alice", slots) };
 

@@ -1,2 +1,10 @@
 /.claude
 /CLAUDE.md
+
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# Local secrets — never commit
+appsettings.Development.json
+appsettings.Local.json

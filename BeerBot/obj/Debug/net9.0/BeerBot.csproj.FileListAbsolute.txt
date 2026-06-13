@@ -137,3 +137,4 @@ D:\source\repos\BeerBot\BeerBot\obj\Debug\net9.0\refint\BeerBot.dll
 D:\source\repos\BeerBot\BeerBot\obj\Debug\net9.0\BeerBot.pdb
 D:\source\repos\BeerBot\BeerBot\obj\Debug\net9.0\BeerBot.genruntimeconfig.cache
 D:\source\repos\BeerBot\BeerBot\obj\Debug\net9.0\ref\BeerBot.dll
+D:\source\repos\BeerBot\BeerBot\obj\Debug\net9.0\BeerBot.sourcelink.json

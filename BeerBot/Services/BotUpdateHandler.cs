@@ -12,7 +12,7 @@ namespace BeerBot.Services;
 public class BotUpdateHandler(
     BeerBotDbContext db,
     ITelegramBotClient bot,
-    OpenRouterClient gemini,
+    SlotWizard wizard,
     BeertimeCommand beertime,
     StatusCommand status,
     SuggestCommand suggest,
@@ -22,6 +22,12 @@ public class BotUpdateHandler(
     public async Task HandleAsync(Update update)
     {
         logger.LogInformation("Update received: {Type}", update.Type);
+
+        if (update.Type == UpdateType.CallbackQuery && update.CallbackQuery is { } callback)
+        {
+            await HandleCallbackAsync(callback);
+            return;
+        }
 
         if (update.Type != UpdateType.Message || update.Message is not { } message)
             return;
@@ -34,6 +40,18 @@ public class BotUpdateHandler(
         {
             await HandlePrivateMessageAsync(message);
         }
+    }
+
+    private async Task HandleCallbackAsync(CallbackQuery callback)
+    {
+        var submittedRequestId = await wizard.HandleCallbackAsync(callback);
+        if (submittedRequestId is null)
+            return;
+
+        // A user just finished — see if that completes the round.
+        var request = await db.MeetingRequests.FirstOrDefaultAsync(r => r.Id == submittedRequestId);
+        if (request is { Status: MeetingRequestStatus.Open })
+            await suggest.PostIfReadyAsync(request, deadlinePassed: false);
     }
 
     private async Task HandleGroupMessageAsync(Message message)
@@ -53,7 +71,10 @@ public class BotUpdateHandler(
         switch (command)
         {
             case "/beertime":
-                await beertime.ExecuteAsync(message);
+                await bot.SendMessage(
+                    message.Chat.Id,
+                    "Напиши мне /beertime в личку, чтобы начать раунд 🍺"
+                );
                 break;
             case "/status":
                 await status.ExecuteAsync(message);
@@ -67,16 +88,18 @@ public class BotUpdateHandler(
     private async Task SendWelcomeAsync(long groupChatId)
     {
         logger.LogInformation("Bot added to group {GroupChatId}; sending welcome", groupChatId);
+        var me = await bot.GetMe();
+        string deepLink = $"https://t.me/{me.Username}?start={groupChatId}";
+
         await bot.SendMessage(
             groupChatId,
             "🍺 *Я пивной бот!*\n\n"
-                + "Я здесь чтобы помочь вамн айти время и бахнуть пивка.\n\n"
+                + "Помогаю найти время и бахнуть пивка.\n\n"
                 + "Как это работает:\n"
-                + "*Commands:*\n"
-                + "/beertime — start a new round\n"
-                + "/status — see who's replied\n"
-                + "/suggest — post the suggestion now\n\n"
-                + "Ready when you are — type /beertime to kick things off!",
+                + "1. Каждый жмёт кнопку ниже и стартует меня в личке.\n"
+                + "2. Любой пишет мне /beertime в личку, чтобы начать раунд.\n"
+                + "3. Все выбирают своё время кнопками — я нахожу пересечение и кидаю опрос сюда.\n\n"
+                + $"Регистрация: [нажми тут]({deepLink})",
             parseMode: ParseMode.Markdown
         );
     }
@@ -92,7 +115,7 @@ public class BotUpdateHandler(
 
         var text = message.Text.Trim();
 
-        // Deep-link entry: tapping the group's /beertime button sends "/start <groupChatId>".
+        // Deep-link entry: tapping the group's register/join button sends "/start <groupChatId>".
         // This is the only way a bot can start a DM with — and learn — a group member.
         if (text.StartsWith("/start", StringComparison.OrdinalIgnoreCase))
         {
@@ -100,7 +123,18 @@ public class BotUpdateHandler(
             return;
         }
 
-        await HandleAvailabilityReplyAsync(message, from);
+        if (text.StartsWith("/beertime", StringComparison.OrdinalIgnoreCase))
+        {
+            await beertime.ExecuteAsync(message);
+            return;
+        }
+
+        // Slots are entered with buttons now — nudge free-text users.
+        await bot.SendMessage(
+            message.Chat.Id,
+            "Время выбирается кнопками 🍺 Напиши /beertime, чтобы начать раунд, "
+                + "или жди приглашения, когда его начнёт кто-то из группы."
+        );
     }
 
     private async Task HandleStartAsync(Message message, Telegram.Bot.Types.User from, string text)
@@ -139,7 +173,7 @@ public class BotUpdateHandler(
         {
             await bot.SendMessage(
                 message.Chat.Id,
-                "Hi! Open me from your group's /beertime button so I can link you to the group. 🍺"
+                "Привет! Открой меня по кнопке из группы, чтобы я привязал тебя к ней. 🍺"
             );
             return;
         }
@@ -152,94 +186,25 @@ public class BotUpdateHandler(
         {
             await bot.SendMessage(
                 message.Chat.Id,
-                "You're all set! 🍺 I'll message you here next time your group runs /beertime."
+                "Готово! 🍺 Напиши /beertime, чтобы начать раунд, или жди приглашения от группы."
             );
             return;
         }
 
-        var alreadyReplied = await db.Availabilities.AnyAsync(a =>
-            a.RequestId == request.Id && a.UserId == user.Id
+        var alreadySubmitted = await db.Availabilities.AnyAsync(a =>
+            a.RequestId == request.Id && a.UserId == user.Id && a.Submitted
         );
 
-        if (alreadyReplied)
+        if (alreadySubmitted)
         {
             await bot.SendMessage(
                 message.Chat.Id,
-                "Thanks, I already have your availability for this round! 🍺"
+                "Спасибо, твоё время уже записано на этот раунд! 🍺"
             );
             return;
         }
 
-        await bot.SendMessage(
-            message.Chat.Id,
-            "Hey! When are you free this week? 🍺 Just reply here with your availability "
-                + "(e.g. \"Monday evening, Wednesday after 6pm\")."
-        );
-    }
-
-    private async Task HandleAvailabilityReplyAsync(Message message, Telegram.Bot.Types.User from)
-    {
-        var user = await db.Users.FirstOrDefaultAsync(u => u.TelegramId == from.Id);
-
-        if (user is null || user.GroupChatId == 0)
-        {
-            await bot.SendMessage(
-                message.Chat.Id,
-                "You're not linked to a group yet. Tap the 🍺 button under your group's /beertime message first!"
-            );
-            return;
-        }
-
-        var request = await db.MeetingRequests.FirstOrDefaultAsync(r =>
-            r.GroupChatId == user.GroupChatId && r.Status == MeetingRequestStatus.Open
-        );
-
-        if (request is null)
-        {
-            await bot.SendMessage(
-                message.Chat.Id,
-                "There's no active beertime round in your group right now."
-            );
-            return;
-        }
-
-        var alreadyReplied = await db.Availabilities.AnyAsync(a =>
-            a.RequestId == request.Id && a.UserId == user.Id
-        );
-
-        if (alreadyReplied)
-        {
-            await bot.SendMessage(
-                message.Chat.Id,
-                "Thanks, I already have your availability! I'll let you know when everyone's replied."
-            );
-            return;
-        }
-
-        var slots = await gemini.ParseAvailabilityAsync(message.Text!, DateTime.UtcNow);
-
-        var availability = new Availability
-        {
-            UserId = user.Id,
-            RequestId = request.Id,
-            RawText = message.Text!,
-            ParsedSlotsJson = slots,
-        };
-        db.Availabilities.Add(availability);
-        await db.SaveChangesAsync();
-
-        logger.LogInformation(
-            "Availability saved for user {UserId} on request {RequestId} ({Count} slots)",
-            user.Id,
-            request.Id,
-            slots.Count
-        );
-
-        await bot.SendMessage(
-            message.Chat.Id,
-            slots.Count > 0
-                ? $"Got it! I found {slots.Count} time slot(s) from your message. I'll notify the group once everyone's replied. 🍺"
-                : "I received your message but couldn't parse any specific times. Try again with something like \"Monday 6pm to 9pm\" or \"free Wednesday evening\"."
-        );
+        // Active round running — drop them straight into the wizard.
+        await wizard.SendDayPickerAsync(message.Chat.Id, request.Id);
     }
 }

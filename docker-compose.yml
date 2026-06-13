@@ -22,8 +22,6 @@ services:
         condition: service_healthy
     environment:
       Telegram__BotToken: ${TELEGRAM_BOT_TOKEN}
-      OpenRouter__ApiKey: ${OPENROUTER_API_KEY}
-      OpenRouter__Model: google/gemini-2.5-flash
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=beerbot;Username=beerbot;Password=${POSTGRES_PASSWORD}"
       Bot__DeadlineHours: 24
 

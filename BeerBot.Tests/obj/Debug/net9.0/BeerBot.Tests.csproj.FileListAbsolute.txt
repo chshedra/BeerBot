@@ -226,3 +226,4 @@ D:\source\repos\BeerBot\BeerBot.Tests\obj\Debug\net9.0\refint\BeerBot.Tests.dll
 D:\source\repos\BeerBot\BeerBot.Tests\obj\Debug\net9.0\BeerBot.Tests.pdb
 D:\source\repos\BeerBot\BeerBot.Tests\obj\Debug\net9.0\BeerBot.Tests.genruntimeconfig.cache
 D:\source\repos\BeerBot\BeerBot.Tests\obj\Debug\net9.0\ref\BeerBot.Tests.dll
+D:\source\repos\BeerBot\BeerBot.Tests\obj\Debug\net9.0\BeerBot.Tests.sourcelink.json

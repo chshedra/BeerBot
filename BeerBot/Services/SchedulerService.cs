@@ -35,7 +35,8 @@ public class SchedulerService(IServiceScopeFactory scopeFactory, ILogger<Schedul
         {
             try
             {
-                await TryCloseMeetingRequestAsync(db, suggest, request);
+                var deadlinePassed = DateTime.UtcNow >= request.DeadlineAt;
+                await suggest.PostIfReadyAsync(request, deadlinePassed);
             }
             catch (Exception ex)
             {
@@ -46,30 +47,5 @@ public class SchedulerService(IServiceScopeFactory scopeFactory, ILogger<Schedul
                 );
             }
         }
-    }
-
-    private async Task TryCloseMeetingRequestAsync(
-        BeerBotDbContext db,
-        SuggestCommand suggest,
-        MeetingRequest request
-    )
-    {
-        var users = await db.Users.Where(u => u.GroupChatId == request.GroupChatId).ToListAsync();
-
-        var repliedUserIds = await db
-            .Availabilities.Where(a => a.RequestId == request.Id)
-            .Select(a => a.UserId)
-            .ToListAsync();
-
-        var allReplied = users.Count > 0 && users.All(u => repliedUserIds.Contains(u.Id));
-        var deadlinePassed = DateTime.UtcNow >= request.DeadlineAt;
-
-        if (!allReplied && !deadlinePassed)
-            return;
-
-        var reason = allReplied ? "all members replied" : "deadline passed";
-        logger.LogInformation("MeetingRequest {Id}: closing ({Reason})", request.Id, reason);
-
-        await suggest.PostSuggestionAsync(request, request.GroupChatId);
     }
 }

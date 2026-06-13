@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using BeerBot.Data;
 using BeerBot.Models;
 using BeerBot.Services;
@@ -5,14 +7,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
 
 namespace BeerBot.Commands;
 
 public class SuggestCommand(
     BeerBotDbContext db,
     ITelegramBotClient bot,
-    OpenRouterClient gemini,
     OverlapFinder overlapFinder,
     ILogger<SuggestCommand> logger)
 {
@@ -25,7 +25,7 @@ public class SuggestCommand(
 
         if (request is null)
         {
-            await bot.SendMessage(groupChatId, "No active meeting request. Start one with /beertime!");
+            await bot.SendMessage(groupChatId, "Нет активного раунда. Начни в личке: /beertime");
             return;
         }
 
@@ -33,36 +33,73 @@ public class SuggestCommand(
         await PostSuggestionAsync(request, groupChatId);
     }
 
+    // Closes and posts the suggestion if everyone has submitted or the deadline passed.
+    // Returns true if the request was closed.
+    internal async Task<bool> PostIfReadyAsync(MeetingRequest request, bool deadlinePassed)
+    {
+        var users = await db.Users.Where(u => u.GroupChatId == request.GroupChatId).ToListAsync();
+
+        var repliedUserIds = await db.Availabilities
+            .Where(a => a.RequestId == request.Id && a.Submitted)
+            .Select(a => a.UserId)
+            .ToListAsync();
+
+        var allReplied = users.Count > 0 && users.All(u => repliedUserIds.Contains(u.Id));
+
+        if (!allReplied && !deadlinePassed)
+            return false;
+
+        var reason = allReplied ? "all members replied" : "deadline passed";
+        logger.LogInformation("MeetingRequest {Id}: closing ({Reason})", request.Id, reason);
+
+        await PostSuggestionAsync(request, request.GroupChatId);
+        return true;
+    }
+
     internal async Task PostSuggestionAsync(MeetingRequest request, long groupChatId)
     {
         var availabilities = await db.Availabilities
             .Include(a => a.User)
-            .Where(a => a.RequestId == request.Id)
+            .Include(a => a.Slots)
+            .Where(a => a.RequestId == request.Id && a.Submitted)
             .ToListAsync();
 
         if (availabilities.Count == 0)
         {
-            await bot.SendMessage(groupChatId, "No one has replied yet, so I can't suggest a time. 😔");
+            await bot.SendMessage(groupChatId, "Пока никто не выбрал время — нечего предложить. 😔");
+            request.Status = MeetingRequestStatus.Closed;
+            await db.SaveChangesAsync();
             return;
         }
 
         var memberAvailability = availabilities
-            .Select(a => new UserAvailability(a.User.Name, a.ParsedSlotsJson))
+            .Select(a => new UserAvailability(
+                a.User.Name,
+                a.Slots.Select(s => new TimeSlot { Day = s.Date, StartTime = s.Start, EndTime = s.End }).ToList()))
             .ToList();
 
         var bestSlots = overlapFinder.FindBestSlots(memberAvailability);
-        var suggestionText = await gemini.GenerateSuggestionAsync(memberAvailability);
 
-        await bot.SendMessage(groupChatId, suggestionText);
-
-        if (bestSlots.Count > 0)
+        if (bestSlots.Count == 0)
         {
+            await bot.SendMessage(groupChatId, "Не нашёл общего окна — ни один слот не пересёкся. 😔");
+        }
+        else
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("🍺 Лучшее время для встречи:");
+            sb.AppendLine();
+            foreach (var slot in bestSlots)
+                sb.AppendLine($"• {FormatSlot(slot)} — свободны {slot.MemberCount}/{availabilities.Count}");
+
+            await bot.SendMessage(groupChatId, sb.ToString());
+
             var pollOptions = bestSlots
-                .Select(s => new Telegram.Bot.Types.InputPollOption($"{Capitalize(s.Day)} {s.Start:HH:mm}–{s.End:HH:mm}"))
-                .Concat([new Telegram.Bot.Types.InputPollOption("None of these work for me")])
+                .Select(s => new InputPollOption(FormatSlot(s)))
+                .Concat([new InputPollOption("Ни один не подходит")])
                 .ToArray();
 
-            await bot.SendPoll(groupChatId, "🍺 When should we meet?", pollOptions, isAnonymous: false);
+            await bot.SendPoll(groupChatId, "🍺 Когда встречаемся?", pollOptions, isAnonymous: false);
         }
 
         request.Status = MeetingRequestStatus.Closed;
@@ -70,6 +107,6 @@ public class SuggestCommand(
         logger.LogInformation("MeetingRequest {Id} closed after suggestion posted", request.Id);
     }
 
-    private static string Capitalize(string s) =>
-        string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0]) + s[1..];
+    private static string FormatSlot(SuggestedSlot s) =>
+        $"{s.Day.ToString("ddd d MMM", CultureInfo.InvariantCulture)} {s.Start:HH:mm}–{s.End:HH:mm}";
 }

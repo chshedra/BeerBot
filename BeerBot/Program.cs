@@ -8,21 +8,20 @@ using Telegram.Bot;
 var builder = Host.CreateApplicationBuilder(args);
 
 // Telegram bot client (singleton)
-builder.Services.AddSingleton<ITelegramBotClient>(_ =>
-    new TelegramBotClient(builder.Configuration["Telegram:BotToken"]!));
-
-// HttpClient for OpenRouter
-builder.Services.AddHttpClient("openrouter");
+builder.Services.AddSingleton<ITelegramBotClient>(_ => new TelegramBotClient(
+    builder.Configuration["Telegram:BotToken"]!
+));
 
 // Database (scoped per request via scope factory)
 builder.Services.AddDbContext<BeerBotDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres"))
+);
 
 // Services
-builder.Services.AddSingleton<OpenRouterClient>();
 builder.Services.AddSingleton<OverlapFinder>();
 
 // Scoped command handlers (need DbContext)
+builder.Services.AddScoped<SlotWizard>();
 builder.Services.AddScoped<BeertimeCommand>();
 builder.Services.AddScoped<StatusCommand>();
 builder.Services.AddScoped<SuggestCommand>();

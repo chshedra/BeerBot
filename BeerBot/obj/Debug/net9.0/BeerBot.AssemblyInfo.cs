@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("BeerBot")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2002e2aa686fcda32f0f48eda2d19bc3832ab369")]
 [assembly: System.Reflection.AssemblyProductAttribute("BeerBot")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BeerBot")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

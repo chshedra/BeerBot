@@ -2,21 +2,12 @@ using BeerBot.Models;
 
 namespace BeerBot.Services;
 
-public record SuggestedSlot(string Day, TimeOnly Start, TimeOnly End, int MemberCount);
+public record UserAvailability(string UserName, List<TimeSlot> Slots);
+
+public record SuggestedSlot(DateOnly Day, TimeOnly Start, TimeOnly End, int MemberCount);
 
 public class OverlapFinder
 {
-    private static readonly string[] Weekdays =
-    [
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday",
-        "sunday",
-    ];
-
     private static readonly TimeOnly EveningStart = new(18, 0);
     private static readonly TimeOnly EveningEnd = new(23, 0);
 
@@ -33,9 +24,16 @@ public class OverlapFinder
             return [];
         }
 
-        Dictionary<(string Day, TimeOnly Block), double> scores = [];
+        Dictionary<(DateOnly Day, TimeOnly Block), double> scores = [];
 
-        foreach (string day in Weekdays)
+        // Only consider dates that at least one member actually offered.
+        var days = members
+            .SelectMany(m => m.Slots)
+            .Select(s => s.Day)
+            .Distinct()
+            .OrderBy(d => d);
+
+        foreach (DateOnly day in days)
         {
             for (int minutes = 0; minutes <= LastBlockStartMinutes; minutes += BlockMinutes)
             {
@@ -70,7 +68,7 @@ public class OverlapFinder
 
         var sorted = scores.OrderByDescending(kv => kv.Value).ToList();
         var results = new List<SuggestedSlot>();
-        var used = new HashSet<(string, TimeOnly)>();
+        var used = new HashSet<(DateOnly, TimeOnly)>();
 
         foreach (var kv in sorted)
         {
