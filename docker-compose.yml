@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: beerbot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: beerbot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beerbot -d beerbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  bot:
+    build:
+      context: ./BeerBot
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      Telegram__BotToken: ${TELEGRAM_BOT_TOKEN}
+      OpenRouter__ApiKey: ${OPENROUTER_API_KEY}
+      OpenRouter__Model: google/gemini-2.5-flash
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=beerbot;Username=beerbot;Password=${POSTGRES_PASSWORD}"
+      Bot__DeadlineHours: 24
+
+volumes:
+  postgres_data:
