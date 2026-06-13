@@ -14,14 +14,16 @@ public class SuggestCommand(
     BeerBotDbContext db,
     ITelegramBotClient bot,
     OverlapFinder overlapFinder,
-    ILogger<SuggestCommand> logger)
+    ILogger<SuggestCommand> logger
+)
 {
     public async Task ExecuteAsync(Message message)
     {
         var groupChatId = message.Chat.Id;
 
-        var request = await db.MeetingRequests
-            .FirstOrDefaultAsync(r => r.GroupChatId == groupChatId && r.Status == MeetingRequestStatus.Open);
+        var request = await db.MeetingRequests.FirstOrDefaultAsync(r =>
+            r.GroupChatId == groupChatId && r.Status == MeetingRequestStatus.Open
+        );
 
         if (request is null)
         {
@@ -39,8 +41,8 @@ public class SuggestCommand(
     {
         var users = await db.Users.Where(u => u.GroupChatId == request.GroupChatId).ToListAsync();
 
-        var repliedUserIds = await db.Availabilities
-            .Where(a => a.RequestId == request.Id && a.Submitted)
+        var repliedUserIds = await db
+            .Availabilities.Where(a => a.RequestId == request.Id && a.Submitted)
             .Select(a => a.UserId)
             .ToListAsync();
 
@@ -58,15 +60,18 @@ public class SuggestCommand(
 
     internal async Task PostSuggestionAsync(MeetingRequest request, long groupChatId)
     {
-        var availabilities = await db.Availabilities
-            .Include(a => a.User)
+        var availabilities = await db
+            .Availabilities.Include(a => a.User)
             .Include(a => a.Slots)
             .Where(a => a.RequestId == request.Id && a.Submitted)
             .ToListAsync();
 
         if (availabilities.Count == 0)
         {
-            await bot.SendMessage(groupChatId, "Пока никто не выбрал время — нечего предложить. 😔");
+            await bot.SendMessage(
+                groupChatId,
+                "Пока никто не выбрал время — нечего предложить. 😔"
+            );
             request.Status = MeetingRequestStatus.Closed;
             await db.SaveChangesAsync();
             return;
@@ -75,14 +80,24 @@ public class SuggestCommand(
         var memberAvailability = availabilities
             .Select(a => new UserAvailability(
                 a.User.Name,
-                a.Slots.Select(s => new TimeSlot { Day = s.Date, StartTime = s.Start, EndTime = s.End }).ToList()))
+                a.Slots.Select(s => new TimeSlot
+                    {
+                        Day = s.Date,
+                        StartTime = s.Start,
+                        EndTime = s.End,
+                    })
+                    .ToList()
+            ))
             .ToList();
 
         var bestSlots = overlapFinder.FindBestSlots(memberAvailability);
 
         if (bestSlots.Count == 0)
         {
-            await bot.SendMessage(groupChatId, "Не нашёл общего окна — ни один слот не пересёкся. 😔");
+            await bot.SendMessage(
+                groupChatId,
+                "Не нашёл общего окна — ни один слот не пересёкся. 😔"
+            );
         }
         else
         {
@@ -90,7 +105,9 @@ public class SuggestCommand(
             sb.AppendLine("🍺 Лучшее время для встречи:");
             sb.AppendLine();
             foreach (var slot in bestSlots)
-                sb.AppendLine($"• {FormatSlot(slot)} — свободны {slot.MemberCount}/{availabilities.Count}");
+                sb.AppendLine(
+                    $"• {FormatSlot(slot)} — свободны {slot.MemberCount}/{availabilities.Count}"
+                );
 
             await bot.SendMessage(groupChatId, sb.ToString());
 
@@ -99,7 +116,12 @@ public class SuggestCommand(
                 .Concat([new InputPollOption("Ни один не подходит")])
                 .ToArray();
 
-            await bot.SendPoll(groupChatId, "🍺 Когда встречаемся?", pollOptions, isAnonymous: false);
+            await bot.SendPoll(
+                groupChatId,
+                "🍺 Когда встречаемся?",
+                pollOptions,
+                isAnonymous: false
+            );
         }
 
         request.Status = MeetingRequestStatus.Closed;

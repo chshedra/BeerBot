@@ -12,11 +12,7 @@ namespace BeerBot.Services;
 // Drives the inline-button availability wizard: pick a day, multi-select hourly slots,
 // repeat for other days, then Done. State lives entirely in the DB (AvailabilitySlot rows)
 // and in the rendered keyboard, so a restart never strands a half-finished user.
-public class SlotWizard(
-    BeerBotDbContext db,
-    ITelegramBotClient bot,
-    ILogger<SlotWizard> logger
-)
+public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<SlotWizard> logger)
 {
     private const int DaysToOffer = 7;
     private const int FirstHour = 12;
@@ -103,7 +99,12 @@ public class SlotWizard(
         }
     }
 
-    private async Task ShowHourPickerAsync(Message message, int requestId, int userId, string dateToken)
+    private async Task ShowHourPickerAsync(
+        Message message,
+        int requestId,
+        int userId,
+        string dateToken
+    )
     {
         var date = ParseDate(dateToken);
         var selected = await GetSelectedHoursAsync(requestId, userId, date);
@@ -236,19 +237,15 @@ public class SlotWizard(
         for (var i = 0; i < DaysToOffer; i++)
         {
             var date = today.AddDays(i);
-            rows.Add(
-                [
-                    InlineKeyboardButton.WithCallbackData(
-                        FormatDay(date),
-                        $"{DayPrefix}:{requestId}:{date.ToString(DateFormat, CultureInfo.InvariantCulture)}"
-                    ),
-                ]
-            );
+            rows.Add([
+                InlineKeyboardButton.WithCallbackData(
+                    FormatDay(date),
+                    $"{DayPrefix}:{requestId}:{date.ToString(DateFormat, CultureInfo.InvariantCulture)}"
+                ),
+            ]);
         }
 
-        rows.Add(
-            [InlineKeyboardButton.WithCallbackData("✅ Готово", $"{DonePrefix}:{requestId}")]
-        );
+        rows.Add([InlineKeyboardButton.WithCallbackData("✅ Готово", $"{DonePrefix}:{requestId}")]);
 
         return new InlineKeyboardMarkup(rows);
     }
@@ -274,18 +271,12 @@ public class SlotWizard(
         }
 
         // 3 hour buttons per row.
-        var rows = hourButtons
-            .Select((btn, idx) => (btn, idx))
-            .GroupBy(x => x.idx / 3)
-            .Select(g => g.Select(x => x.btn).ToArray())
-            .ToList();
+        var rows = hourButtons.Chunk(3).ToList();
 
-        rows.Add(
-            [
-                InlineKeyboardButton.WithCallbackData("⬅ Дни", $"{BackPrefix}:{requestId}"),
-                InlineKeyboardButton.WithCallbackData("✅ Готово", $"{DonePrefix}:{requestId}"),
-            ]
-        );
+        rows.Add([
+            InlineKeyboardButton.WithCallbackData("⬅ Дни", $"{BackPrefix}:{requestId}"),
+            InlineKeyboardButton.WithCallbackData("✅ Готово", $"{DonePrefix}:{requestId}"),
+        ]);
 
         return new InlineKeyboardMarkup(rows);
     }

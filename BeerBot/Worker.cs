@@ -8,7 +8,8 @@ namespace BeerBot;
 public class Worker(
     ITelegramBotClient bot,
     IServiceScopeFactory scopeFactory,
-    ILogger<Worker> logger) : BackgroundService
+    ILogger<Worker> logger
+) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -22,7 +23,8 @@ public class Worker(
                 var updates = await bot.GetUpdates(
                     offset: offset,
                     timeout: 30,
-                    cancellationToken: stoppingToken);
+                    cancellationToken: stoppingToken
+                );
 
                 foreach (var update in updates)
                 {

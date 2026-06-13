@@ -27,11 +27,7 @@ public class OverlapFinder
         Dictionary<(DateOnly Day, TimeOnly Block), double> scores = [];
 
         // Only consider dates that at least one member actually offered.
-        var days = members
-            .SelectMany(m => m.Slots)
-            .Select(s => s.Day)
-            .Distinct()
-            .OrderBy(d => d);
+        var days = members.SelectMany(m => m.Slots).Select(s => s.Day).Distinct().OrderBy(d => d);
 
         foreach (DateOnly day in days)
         {
@@ -43,13 +39,7 @@ public class OverlapFinder
 
                 foreach (UserAvailability member in members)
                 {
-                    if (
-                        member.Slots.Any(slot =>
-                            slot.Day == day
-                            && slot.StartTime <= blockStart
-                            && slot.EndTime >= blockEnd
-                        )
-                    )
+                    if (IsFree(member, day, blockStart, blockEnd))
                     {
                         score += 1.0;
                         if (blockStart >= EveningStart && blockStart < EveningEnd)
@@ -76,25 +66,35 @@ public class OverlapFinder
                 break;
 
             var (day, block) = kv.Key;
+            var blockEnd = block.AddMinutes(BlockMinutes);
 
             // Skip if adjacent block on same day already claimed (non-overlapping windows)
             if (
                 used.Contains((day, block))
-                || used.Contains((day, block.AddMinutes(-30)))
-                || used.Contains((day, block.AddMinutes(30)))
+                || used.Contains((day, block.AddMinutes(-BlockMinutes)))
+                || used.Contains((day, blockEnd))
             )
                 continue;
 
-            var memberCount = members.Count(m =>
-                m.Slots.Any(s =>
-                    s.Day == day && s.StartTime <= block && s.EndTime >= block.AddMinutes(30)
-                )
-            );
+            var memberCount = members.Count(m => IsFree(m, day, block, blockEnd));
 
-            results.Add(new SuggestedSlot(day, block, block.AddMinutes(30), memberCount));
+            results.Add(new SuggestedSlot(day, block, blockEnd, memberCount));
             used.Add((day, block));
         }
 
         return results;
     }
+
+    /// <summary>
+    /// Whether the member is free during the specified time block.
+    /// </summary>
+    private static bool IsFree(
+        UserAvailability member,
+        DateOnly day,
+        TimeOnly blockStart,
+        TimeOnly blockEnd
+    ) =>
+        member.Slots.Any(slot =>
+            slot.Day == day && slot.StartTime <= blockStart && slot.EndTime >= blockEnd
+        );
 }

@@ -2,9 +2,38 @@
 /CLAUDE.md
 
 # Build output
+[Dd]ebug/
+[Rr]elease/
+x64/
 [Bb]in/
 [Oo]bj/
 
 # Local secrets — never commit
 appsettings.Development.json
 appsettings.Local.json
+
+*_i.c
+*_p.c
+*_i.h
+*.ilk
+*.meta
+*.obj
+*.pch
+*.pdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*.log
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.log
+*.svclog
+*.scc

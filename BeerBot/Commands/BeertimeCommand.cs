@@ -8,6 +8,8 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
+using TelegramUser = Telegram.Bot.Types.User;
+using User = BeerBot.Models.User;
 
 namespace BeerBot.Commands;
 
@@ -23,13 +25,17 @@ public class BeertimeCommand(
 {
     public async Task ExecuteAsync(Message message)
     {
-        var from = message.From;
+        TelegramUser? from = message.From;
+
         if (from is null)
+        {
             return;
+        }
 
         long dmChatId = message.Chat.Id;
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.TelegramId == from.Id);
+        User? user = await db.Users.FirstOrDefaultAsync(u => u.TelegramId == from.Id);
+
         if (user is null || user.GroupChatId == 0)
         {
             await bot.SendMessage(
@@ -41,9 +47,10 @@ public class BeertimeCommand(
 
         long groupChatId = user.GroupChatId;
 
-        var existing = await db.MeetingRequests.FirstOrDefaultAsync(r =>
+        MeetingRequest? existing = await db.MeetingRequests.FirstOrDefaultAsync(r =>
             r.GroupChatId == groupChatId && r.Status == MeetingRequestStatus.Open
         );
+
         if (existing is not null)
         {
             await bot.SendMessage(
@@ -54,7 +61,7 @@ public class BeertimeCommand(
         }
 
         int deadlineHours = config.GetValue("Bot:DeadlineHours", 24);
-        var request = new MeetingRequest
+        MeetingRequest request = new()
         {
             GroupChatId = groupChatId,
             InitiatorUserId = user.Id,
@@ -75,11 +82,11 @@ public class BeertimeCommand(
         await wizard.SendDayPickerAsync(dmChatId, request.Id);
 
         // 2) DM every other already-registered member of this group.
-        var others = await db
+        List<User> others = await db
             .Users.Where(u => u.GroupChatId == groupChatId && u.Id != user.Id)
             .ToListAsync();
 
-        foreach (var other in others)
+        foreach (User other in others)
         {
             try
             {
@@ -97,7 +104,7 @@ public class BeertimeCommand(
         }
 
         // 3) Post a join button in the group so members who haven't started the bot can opt in.
-        Telegram.Bot.Types.User me = await bot.GetMe();
+        TelegramUser me = await bot.GetMe();
         string deepLink = $"https://t.me/{me.Username}?start={groupChatId}";
         InlineKeyboardMarkup keyboard = new(
             InlineKeyboardButton.WithUrl("🍺 Участвовать", deepLink)

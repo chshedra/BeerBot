@@ -1,6 +1,10 @@
 namespace BeerBot.Models;
 
-public enum MeetingRequestStatus { Open, Closed }
+public enum MeetingRequestStatus
+{
+    Open,
+    Closed,
+}
 
 public class MeetingRequest
 {
