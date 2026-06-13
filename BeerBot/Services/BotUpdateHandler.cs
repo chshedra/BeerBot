@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using TelegramUser = Telegram.Bot.Types.User;
 
 namespace BeerBot.Services;
 
@@ -30,7 +31,9 @@ public class BotUpdateHandler(
         }
 
         if (update.Type != UpdateType.Message || update.Message is not { } message)
+        {
             return;
+        }
 
         if (message.Chat.Type is ChatType.Group or ChatType.Supergroup)
         {
@@ -44,14 +47,20 @@ public class BotUpdateHandler(
 
     private async Task HandleCallbackAsync(CallbackQuery callback)
     {
-        var submittedRequestId = await wizard.HandleCallbackAsync(callback);
+        int? submittedRequestId = await wizard.HandleCallbackAsync(callback);
         if (submittedRequestId is null)
+        {
             return;
+        }
 
         // A user just finished — see if that completes the round.
-        var request = await db.MeetingRequests.FirstOrDefaultAsync(r => r.Id == submittedRequestId);
+        MeetingRequest? request = await db.MeetingRequests.FirstOrDefaultAsync(r =>
+            r.Id == submittedRequestId
+        );
         if (request is { Status: MeetingRequestStatus.Open })
+        {
             await suggest.PostIfReadyAsync(request, deadlinePassed: false);
+        }
     }
 
     private async Task HandleGroupMessageAsync(Message message)
@@ -59,14 +68,16 @@ public class BotUpdateHandler(
         // Service message fired when members (possibly the bot itself) are added to the group.
         if (message.NewChatMembers is { Length: > 0 } newMembers)
         {
-            var me = await bot.GetMe();
+            TelegramUser me = await bot.GetMe();
             if (newMembers.Any(m => m.Id == me.Id))
+            {
                 await SendWelcomeAsync(message.Chat.Id);
+            }
             return;
         }
 
-        var text = message.Text ?? string.Empty;
-        var command = text.Split(' ', '@')[0].ToLowerInvariant();
+        string text = message.Text ?? string.Empty;
+        string command = text.Split(' ', '@')[0].ToLowerInvariant();
 
         switch (command)
         {
@@ -88,7 +99,7 @@ public class BotUpdateHandler(
     private async Task SendWelcomeAsync(long groupChatId)
     {
         logger.LogInformation("Bot added to group {GroupChatId}; sending welcome", groupChatId);
-        var me = await bot.GetMe();
+        TelegramUser me = await bot.GetMe();
         string deepLink = $"https://t.me/{me.Username}?start={groupChatId}";
 
         await bot.SendMessage(
@@ -107,13 +118,17 @@ public class BotUpdateHandler(
     private async Task HandlePrivateMessageAsync(Message message)
     {
         if (string.IsNullOrWhiteSpace(message.Text))
+        {
             return;
+        }
 
-        var from = message.From;
+        TelegramUser? from = message.From;
         if (from is null)
+        {
             return;
+        }
 
-        var text = message.Text.Trim();
+        string text = message.Text.Trim();
 
         // Deep-link entry: tapping the group's register/join button sends "/start <groupChatId>".
         // This is the only way a bot can start a DM with — and learn — a group member.
@@ -137,15 +152,17 @@ public class BotUpdateHandler(
         );
     }
 
-    private async Task HandleStartAsync(Message message, Telegram.Bot.Types.User from, string text)
+    private async Task HandleStartAsync(Message message, TelegramUser from, string text)
     {
         // Extract the start payload: "/start -1001234567890" → group chat id
         long? groupId = null;
-        var parts = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 2 && long.TryParse(parts[1], out var parsed))
+        string[] parts = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 2 && long.TryParse(parts[1], out long parsed))
+        {
             groupId = parsed;
+        }
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.TelegramId == from.Id);
+        Models.User? user = await db.Users.FirstOrDefaultAsync(u => u.TelegramId == from.Id);
         if (user is null)
         {
             user = new Models.User
@@ -178,7 +195,7 @@ public class BotUpdateHandler(
             return;
         }
 
-        var request = await db.MeetingRequests.FirstOrDefaultAsync(r =>
+        MeetingRequest? request = await db.MeetingRequests.FirstOrDefaultAsync(r =>
             r.GroupChatId == user.GroupChatId && r.Status == MeetingRequestStatus.Open
         );
 
@@ -191,7 +208,7 @@ public class BotUpdateHandler(
             return;
         }
 
-        var alreadySubmitted = await db.Availabilities.AnyAsync(a =>
+        bool alreadySubmitted = await db.Availabilities.AnyAsync(a =>
             a.RequestId == request.Id && a.UserId == user.Id && a.Submitted
         );
 

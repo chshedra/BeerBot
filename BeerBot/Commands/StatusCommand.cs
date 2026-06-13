@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using User = BeerBot.Models.User;
 
 namespace BeerBot.Commands;
 
@@ -15,9 +16,9 @@ public class StatusCommand(
 {
     public async Task ExecuteAsync(Message message)
     {
-        var groupChatId = message.Chat.Id;
+        long groupChatId = message.Chat.Id;
 
-        var request = await db.MeetingRequests.FirstOrDefaultAsync(r =>
+        MeetingRequest? request = await db.MeetingRequests.FirstOrDefaultAsync(r =>
             r.GroupChatId == groupChatId && r.Status == MeetingRequestStatus.Open
         );
 
@@ -30,28 +31,34 @@ public class StatusCommand(
             return;
         }
 
-        var users = await db.Users.Where(u => u.GroupChatId == groupChatId).ToListAsync();
-        var replied = await db
+        List<User> users = await db.Users.Where(u => u.GroupChatId == groupChatId).ToListAsync();
+        List<int> replied = await db
             .Availabilities.Where(a => a.RequestId == request.Id && a.Submitted)
             .Select(a => a.UserId)
             .ToListAsync();
 
-        var repliedSet = replied.ToHashSet();
-        var waiting = users.Where(u => !repliedSet.Contains(u.Id)).ToList();
+        HashSet<int> repliedSet = replied.ToHashSet();
+        List<User> waiting = users.Where(u => !repliedSet.Contains(u.Id)).ToList();
 
-        var sb = new System.Text.StringBuilder();
+        System.Text.StringBuilder sb = new();
         sb.AppendLine(
             $"📊 *Meeting request status* (deadline: {request.DeadlineAt:ddd HH:mm} UTC)"
         );
         sb.AppendLine();
 
-        foreach (var u in users)
+        foreach (User u in users)
+        {
             sb.AppendLine(repliedSet.Contains(u.Id) ? $"✅ {u.Name}" : $"⏳ {u.Name}");
+        }
 
         if (waiting.Count == 0)
+        {
             sb.AppendLine("\nEveryone has replied! Generating suggestion...");
+        }
         else
+        {
             sb.AppendLine($"\nWaiting for {waiting.Count} more.");
+        }
 
         logger.LogInformation("Status requested for group {GroupChatId}", groupChatId);
         await bot.SendMessage(

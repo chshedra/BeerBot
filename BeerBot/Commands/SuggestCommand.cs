@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using User = BeerBot.Models.User;
 
 namespace BeerBot.Commands;
 
@@ -19,9 +20,9 @@ public class SuggestCommand(
 {
     public async Task ExecuteAsync(Message message)
     {
-        var groupChatId = message.Chat.Id;
+        long groupChatId = message.Chat.Id;
 
-        var request = await db.MeetingRequests.FirstOrDefaultAsync(r =>
+        MeetingRequest? request = await db.MeetingRequests.FirstOrDefaultAsync(r =>
             r.GroupChatId == groupChatId && r.Status == MeetingRequestStatus.Open
         );
 
@@ -39,19 +40,23 @@ public class SuggestCommand(
     // Returns true if the request was closed.
     internal async Task<bool> PostIfReadyAsync(MeetingRequest request, bool deadlinePassed)
     {
-        var users = await db.Users.Where(u => u.GroupChatId == request.GroupChatId).ToListAsync();
+        List<User> users = await db
+            .Users.Where(u => u.GroupChatId == request.GroupChatId)
+            .ToListAsync();
 
-        var repliedUserIds = await db
+        List<int> repliedUserIds = await db
             .Availabilities.Where(a => a.RequestId == request.Id && a.Submitted)
             .Select(a => a.UserId)
             .ToListAsync();
 
-        var allReplied = users.Count > 0 && users.All(u => repliedUserIds.Contains(u.Id));
+        bool allReplied = users.Count > 0 && users.All(u => repliedUserIds.Contains(u.Id));
 
         if (!allReplied && !deadlinePassed)
+        {
             return false;
+        }
 
-        var reason = allReplied ? "all members replied" : "deadline passed";
+        string reason = allReplied ? "all members replied" : "deadline passed";
         logger.LogInformation("MeetingRequest {Id}: closing ({Reason})", request.Id, reason);
 
         await PostSuggestionAsync(request, request.GroupChatId);
@@ -60,7 +65,7 @@ public class SuggestCommand(
 
     internal async Task PostSuggestionAsync(MeetingRequest request, long groupChatId)
     {
-        var availabilities = await db
+        List<Availability> availabilities = await db
             .Availabilities.Include(a => a.User)
             .Include(a => a.Slots)
             .Where(a => a.RequestId == request.Id && a.Submitted)
@@ -77,7 +82,7 @@ public class SuggestCommand(
             return;
         }
 
-        var memberAvailability = availabilities
+        List<UserAvailability> memberAvailability = availabilities
             .Select(a => new UserAvailability(
                 a.User.Name,
                 a.Slots.Select(s => new TimeSlot
@@ -90,7 +95,7 @@ public class SuggestCommand(
             ))
             .ToList();
 
-        var bestSlots = overlapFinder.FindBestSlots(memberAvailability);
+        List<SuggestedSlot> bestSlots = overlapFinder.FindBestSlots(memberAvailability);
 
         if (bestSlots.Count == 0)
         {
@@ -101,17 +106,19 @@ public class SuggestCommand(
         }
         else
         {
-            var sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine("🍺 Лучшее время для встречи:");
             sb.AppendLine();
-            foreach (var slot in bestSlots)
+            foreach (SuggestedSlot slot in bestSlots)
+            {
                 sb.AppendLine(
                     $"• {FormatSlot(slot)} — свободны {slot.MemberCount}/{availabilities.Count}"
                 );
+            }
 
             await bot.SendMessage(groupChatId, sb.ToString());
 
-            var pollOptions = bestSlots
+            InputPollOption[] pollOptions = bestSlots
                 .Select(s => new InputPollOption(FormatSlot(s)))
                 .Concat([new InputPollOption("Ни один не подходит")])
                 .ToArray();

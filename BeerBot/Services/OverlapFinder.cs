@@ -27,7 +27,11 @@ public class OverlapFinder
         Dictionary<(DateOnly Day, TimeOnly Block), double> scores = [];
 
         // Only consider dates that at least one member actually offered.
-        var days = members.SelectMany(m => m.Slots).Select(s => s.Day).Distinct().OrderBy(d => d);
+        IEnumerable<DateOnly> days = members
+            .SelectMany(m => m.Slots)
+            .Select(s => s.Day)
+            .Distinct()
+            .OrderBy(d => d);
 
         foreach (DateOnly day in days)
         {
@@ -56,17 +60,21 @@ public class OverlapFinder
             }
         }
 
-        var sorted = scores.OrderByDescending(kv => kv.Value).ToList();
-        var results = new List<SuggestedSlot>();
-        var used = new HashSet<(DateOnly, TimeOnly)>();
+        List<KeyValuePair<(DateOnly Day, TimeOnly Block), double>> sorted = scores
+            .OrderByDescending(kv => kv.Value)
+            .ToList();
+        List<SuggestedSlot> results = [];
+        HashSet<(DateOnly, TimeOnly)> used = [];
 
-        foreach (var kv in sorted)
+        foreach (KeyValuePair<(DateOnly Day, TimeOnly Block), double> entry in sorted)
         {
             if (results.Count >= 3)
+            {
                 break;
+            }
 
-            var (day, block) = kv.Key;
-            var blockEnd = block.AddMinutes(BlockMinutes);
+            (DateOnly day, TimeOnly block) = entry.Key;
+            TimeOnly blockEnd = block.AddMinutes(BlockMinutes);
 
             // Skip if adjacent block on same day already claimed (non-overlapping windows)
             if (
@@ -74,9 +82,11 @@ public class OverlapFinder
                 || used.Contains((day, block.AddMinutes(-BlockMinutes)))
                 || used.Contains((day, blockEnd))
             )
+            {
                 continue;
+            }
 
-            var memberCount = members.Count(m => IsFree(m, day, block, blockEnd));
+            int memberCount = members.Count(m => IsFree(m, day, block, blockEnd));
 
             results.Add(new SuggestedSlot(day, block, blockEnd, memberCount));
             used.Add((day, block));

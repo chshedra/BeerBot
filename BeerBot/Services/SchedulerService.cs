@@ -23,19 +23,19 @@ public class SchedulerService(IServiceScopeFactory scopeFactory, ILogger<Schedul
     {
         logger.LogInformation("SchedulerService: checking open meeting requests");
 
-        using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<BeerBotDbContext>();
-        var suggest = scope.ServiceProvider.GetRequiredService<SuggestCommand>();
+        using IServiceScope scope = scopeFactory.CreateScope();
+        BeerBotDbContext db = scope.ServiceProvider.GetRequiredService<BeerBotDbContext>();
+        SuggestCommand suggest = scope.ServiceProvider.GetRequiredService<SuggestCommand>();
 
-        var openRequests = await db
+        List<MeetingRequest> openRequests = await db
             .MeetingRequests.Where(r => r.Status == MeetingRequestStatus.Open)
             .ToListAsync();
 
-        foreach (var request in openRequests)
+        foreach (MeetingRequest request in openRequests)
         {
             try
             {
-                var deadlinePassed = DateTime.UtcNow >= request.DeadlineAt;
+                bool deadlinePassed = DateTime.UtcNow >= request.DeadlineAt;
                 await suggest.PostIfReadyAsync(request, deadlinePassed);
             }
             catch (Exception ex)

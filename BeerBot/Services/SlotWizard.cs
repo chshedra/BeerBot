@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
+using User = BeerBot.Models.User;
 
 namespace BeerBot.Services;
 
@@ -38,9 +39,9 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
     // Returns the requestId if the user just submitted (pressed Done), else null.
     public async Task<int?> HandleCallbackAsync(CallbackQuery query)
     {
-        var data = query.Data ?? string.Empty;
-        var parts = data.Split(':');
-        var prefix = parts[0];
+        string data = query.Data ?? string.Empty;
+        string[] parts = data.Split(':');
+        string prefix = parts[0];
 
         if (query.Message is not { } message || query.From is null)
         {
@@ -48,20 +49,22 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
             return null;
         }
 
-        if (!int.TryParse(parts.ElementAtOrDefault(1), out var requestId))
+        if (!int.TryParse(parts.ElementAtOrDefault(1), out int requestId))
         {
             await Answer(query);
             return null;
         }
 
-        var request = await db.MeetingRequests.FirstOrDefaultAsync(r => r.Id == requestId);
+        MeetingRequest? request = await db.MeetingRequests.FirstOrDefaultAsync(r =>
+            r.Id == requestId
+        );
         if (request is null || request.Status != MeetingRequestStatus.Open)
         {
             await Answer(query, "Этот раунд уже закрыт 🍺");
             return null;
         }
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.TelegramId == query.From.Id);
+        User? user = await db.Users.FirstOrDefaultAsync(u => u.TelegramId == query.From.Id);
         if (user is null)
         {
             await Answer(query);
@@ -106,8 +109,8 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         string dateToken
     )
     {
-        var date = ParseDate(dateToken);
-        var selected = await GetSelectedHoursAsync(requestId, userId, date);
+        DateOnly date = ParseDate(dateToken);
+        HashSet<int> selected = await GetSelectedHoursAsync(requestId, userId, date);
 
         await bot.EditMessageText(
             message.Chat.Id,
@@ -125,14 +128,16 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         string hourToken
     )
     {
-        var date = ParseDate(dateToken);
-        if (!int.TryParse(hourToken, out var hour))
+        DateOnly date = ParseDate(dateToken);
+        if (!int.TryParse(hourToken, out int hour))
+        {
             return;
+        }
 
-        var availability = await GetOrCreateAvailabilityAsync(request.Id, userId);
-        var start = new TimeOnly(hour, 0);
+        Availability availability = await GetOrCreateAvailabilityAsync(request.Id, userId);
+        TimeOnly start = new(hour, 0);
 
-        var existing = await db.AvailabilitySlots.FirstOrDefaultAsync(s =>
+        AvailabilitySlot? existing = await db.AvailabilitySlots.FirstOrDefaultAsync(s =>
             s.AvailabilityId == availability.Id && s.Date == date && s.Start == start
         );
 
@@ -154,7 +159,7 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         }
         await db.SaveChangesAsync();
 
-        var selected = await GetSelectedHoursAsync(request.Id, userId, date);
+        HashSet<int> selected = await GetSelectedHoursAsync(request.Id, userId, date);
         await bot.EditMessageReplyMarkup(
             message.Chat.Id,
             message.MessageId,
@@ -169,7 +174,7 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         int userId
     )
     {
-        var availability = await db
+        Availability? availability = await db
             .Availabilities.Include(a => a.Slots)
             .FirstOrDefaultAsync(a => a.RequestId == request.Id && a.UserId == userId);
 
@@ -201,7 +206,7 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
 
     private async Task<Availability> GetOrCreateAvailabilityAsync(int requestId, int userId)
     {
-        var availability = await db.Availabilities.FirstOrDefaultAsync(a =>
+        Availability? availability = await db.Availabilities.FirstOrDefaultAsync(a =>
             a.RequestId == requestId && a.UserId == userId
         );
 
@@ -217,7 +222,7 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
 
     private async Task<HashSet<int>> GetSelectedHoursAsync(int requestId, int userId, DateOnly date)
     {
-        var hours = await db
+        List<int> hours = await db
             .AvailabilitySlots.Where(s =>
                 s.Availability.RequestId == requestId
                 && s.Availability.UserId == userId
@@ -231,12 +236,12 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
 
     private static InlineKeyboardMarkup BuildDayKeyboard(int requestId)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var rows = new List<InlineKeyboardButton[]>();
+        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        List<InlineKeyboardButton[]> rows = [];
 
-        for (var i = 0; i < DaysToOffer; i++)
+        for (int i = 0; i < DaysToOffer; i++)
         {
-            var date = today.AddDays(i);
+            DateOnly date = today.AddDays(i);
             rows.Add([
                 InlineKeyboardButton.WithCallbackData(
                     FormatDay(date),
@@ -256,12 +261,12 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         HashSet<int> selected
     )
     {
-        var dateToken = date.ToString(DateFormat, CultureInfo.InvariantCulture);
-        var hourButtons = new List<InlineKeyboardButton>();
+        string dateToken = date.ToString(DateFormat, CultureInfo.InvariantCulture);
+        List<InlineKeyboardButton> hourButtons = [];
 
-        for (var hour = FirstHour; hour <= LastHour; hour++)
+        for (int hour = FirstHour; hour <= LastHour; hour++)
         {
-            var label = selected.Contains(hour) ? $"✅ {hour:00}:00" : $"{hour:00}:00";
+            string label = selected.Contains(hour) ? $"✅ {hour:00}:00" : $"{hour:00}:00";
             hourButtons.Add(
                 InlineKeyboardButton.WithCallbackData(
                     label,
@@ -271,7 +276,7 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         }
 
         // 3 hour buttons per row.
-        var rows = hourButtons.Chunk(3).ToList();
+        List<InlineKeyboardButton[]> rows = hourButtons.Chunk(3).ToList();
 
         rows.Add([
             InlineKeyboardButton.WithCallbackData("⬅ Дни", $"{BackPrefix}:{requestId}"),
@@ -286,12 +291,16 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
 
     private static string FormatDay(DateOnly date)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var label = date.ToString("ddd d MMM", CultureInfo.InvariantCulture);
+        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        string label = date.ToString("ddd d MMM", CultureInfo.InvariantCulture);
         if (date == today)
+        {
             return $"Сегодня ({label})";
+        }
         if (date == today.AddDays(1))
+        {
             return $"Завтра ({label})";
+        }
         return label;
     }
 

@@ -5,7 +5,7 @@ using BeerBot.Services;
 using Microsoft.EntityFrameworkCore;
 using Telegram.Bot;
 
-var builder = Host.CreateApplicationBuilder(args);
+HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
 // Telegram bot client (singleton)
 builder.Services.AddSingleton<ITelegramBotClient>(_ => new TelegramBotClient(
@@ -31,5 +31,5 @@ builder.Services.AddScoped<BotUpdateHandler>();
 builder.Services.AddHostedService<Worker>();
 builder.Services.AddHostedService<SchedulerService>();
 
-var host = builder.Build();
+IHost host = builder.Build();
 host.Run();

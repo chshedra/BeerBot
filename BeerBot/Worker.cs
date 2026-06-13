@@ -14,19 +14,19 @@ public class Worker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("Worker started — beginning long-poll loop");
-        var offset = 0;
+        int offset = 0;
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                var updates = await bot.GetUpdates(
+                Update[] updates = await bot.GetUpdates(
                     offset: offset,
                     timeout: 30,
                     cancellationToken: stoppingToken
                 );
 
-                foreach (var update in updates)
+                foreach (Update update in updates)
                 {
                     offset = update.Id + 1;
                     _ = ProcessUpdateAsync(update, stoppingToken);
@@ -48,8 +48,8 @@ public class Worker(
 
     private async Task ProcessUpdateAsync(Update update, CancellationToken ct)
     {
-        using var scope = scopeFactory.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<BotUpdateHandler>();
+        using IServiceScope scope = scopeFactory.CreateScope();
+        BotUpdateHandler handler = scope.ServiceProvider.GetRequiredService<BotUpdateHandler>();
         try
         {
             await handler.HandleAsync(update);
