@@ -1,0 +1,13 @@
+# Build output / restore artifacts — must not clobber the container's own restore
+bin/
+obj/
+
+# Local secrets — never bake into an image
+appsettings.Development.json
+appsettings.Local.json
+
+# Misc
+.dockerignore
+Dockerfile
+.git
+.gitignore
