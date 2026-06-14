@@ -1,6 +1,7 @@
 using System.Globalization;
 using BeerBot.Data;
 using BeerBot.Models;
+using BeerBot.Resources;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
@@ -31,7 +32,7 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
     {
         await bot.SendMessage(
             chatId,
-            "🍺 Когда сможешь? Выбери день:",
+            BotMessages.Wizard.PickDay,
             replyMarkup: BuildDayKeyboard(requestId)
         );
     }
@@ -60,7 +61,7 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         );
         if (request is null || request.Status != MeetingRequestStatus.Open)
         {
-            await Answer(query, "Этот раунд уже закрыт 🍺");
+            await Answer(query, BotMessages.Wizard.RoundClosed);
             return null;
         }
 
@@ -87,7 +88,7 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
                 await bot.EditMessageText(
                     message.Chat.Id,
                     message.MessageId,
-                    "🍺 Когда сможешь? Выбери день:",
+                    BotMessages.Wizard.PickDay,
                     replyMarkup: BuildDayKeyboard(requestId)
                 );
                 await Answer(query);
@@ -115,7 +116,7 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         await bot.EditMessageText(
             message.Chat.Id,
             message.MessageId,
-            $"🍺 {FormatDay(date)} — выбери удобные часы (можно несколько):",
+            BotMessages.Wizard.PickHours(FormatDay(date)),
             replyMarkup: BuildHourKeyboard(requestId, date, selected)
         );
     }
@@ -180,7 +181,7 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
 
         if (availability is null || availability.Slots.Count == 0)
         {
-            await Answer(query, "Сначала выбери хотя бы один слот 🍺");
+            await Answer(query, BotMessages.Wizard.SelectAtLeastOne);
             return null;
         }
 
@@ -197,10 +198,9 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         await bot.EditMessageText(
             message.Chat.Id,
             message.MessageId,
-            $"Готово! Записал {availability.Slots.Count} слот(ов). "
-                + "Скину в чат лучшее время, когда все ответят. 🍺"
+            BotMessages.Wizard.Submitted(availability.Slots.Count)
         );
-        await Answer(query, "Сохранено 🍺");
+        await Answer(query, BotMessages.Wizard.Saved);
         return request.Id;
     }
 
@@ -250,7 +250,12 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
             ]);
         }
 
-        rows.Add([InlineKeyboardButton.WithCallbackData("✅ Готово", $"{DonePrefix}:{requestId}")]);
+        rows.Add([
+            InlineKeyboardButton.WithCallbackData(
+                BotMessages.Wizard.DoneButton,
+                $"{DonePrefix}:{requestId}"
+            ),
+        ]);
 
         return new InlineKeyboardMarkup(rows);
     }
@@ -279,8 +284,14 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         List<InlineKeyboardButton[]> rows = hourButtons.Chunk(3).ToList();
 
         rows.Add([
-            InlineKeyboardButton.WithCallbackData("⬅ Дни", $"{BackPrefix}:{requestId}"),
-            InlineKeyboardButton.WithCallbackData("✅ Готово", $"{DonePrefix}:{requestId}"),
+            InlineKeyboardButton.WithCallbackData(
+                BotMessages.Wizard.BackToDaysButton,
+                $"{BackPrefix}:{requestId}"
+            ),
+            InlineKeyboardButton.WithCallbackData(
+                BotMessages.Wizard.DoneButton,
+                $"{DonePrefix}:{requestId}"
+            ),
         ]);
 
         return new InlineKeyboardMarkup(rows);
@@ -295,11 +306,11 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         string label = date.ToString("ddd d MMM", CultureInfo.InvariantCulture);
         if (date == today)
         {
-            return $"Сегодня ({label})";
+            return BotMessages.Wizard.Today(label);
         }
         if (date == today.AddDays(1))
         {
-            return $"Завтра ({label})";
+            return BotMessages.Wizard.Tomorrow(label);
         }
         return label;
     }

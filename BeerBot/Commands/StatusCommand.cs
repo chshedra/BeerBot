@@ -1,5 +1,6 @@
 using BeerBot.Data;
 using BeerBot.Models;
+using BeerBot.Resources;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
@@ -24,10 +25,7 @@ public class StatusCommand(
 
         if (request is null)
         {
-            await bot.SendMessage(
-                groupChatId,
-                "No active meeting request. Start one with /beertime!"
-            );
+            await bot.SendMessage(groupChatId, BotMessages.Status.NoActiveRequest);
             return;
         }
 
@@ -41,23 +39,25 @@ public class StatusCommand(
         List<User> waiting = users.Where(u => !repliedSet.Contains(u.Id)).ToList();
 
         System.Text.StringBuilder sb = new();
-        sb.AppendLine(
-            $"📊 *Meeting request status* (deadline: {request.DeadlineAt:ddd HH:mm} UTC)"
-        );
+        sb.AppendLine(BotMessages.Status.Header(request.DeadlineAt));
         sb.AppendLine();
 
         foreach (User u in users)
         {
-            sb.AppendLine(repliedSet.Contains(u.Id) ? $"✅ {u.Name}" : $"⏳ {u.Name}");
+            sb.AppendLine(
+                repliedSet.Contains(u.Id)
+                    ? BotMessages.Status.MemberReplied(u.Name)
+                    : BotMessages.Status.MemberWaiting(u.Name)
+            );
         }
 
         if (waiting.Count == 0)
         {
-            sb.AppendLine("\nEveryone has replied! Generating suggestion...");
+            sb.AppendLine(BotMessages.Status.EveryoneReplied);
         }
         else
         {
-            sb.AppendLine($"\nWaiting for {waiting.Count} more.");
+            sb.AppendLine(BotMessages.Status.WaitingForMore(waiting.Count));
         }
 
         logger.LogInformation("Status requested for group {GroupChatId}", groupChatId);

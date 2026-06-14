@@ -1,5 +1,6 @@
 using BeerBot.Data;
 using BeerBot.Models;
+using BeerBot.Resources;
 using BeerBot.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -38,10 +39,7 @@ public class BeertimeCommand(
 
         if (user is null || user.GroupChatId == 0)
         {
-            await bot.SendMessage(
-                dmChatId,
-                "Ты пока не привязан к группе. Добавь меня в группу и нажми кнопку регистрации под моим приветствием. 🍺"
-            );
+            await bot.SendMessage(dmChatId, BotMessages.Beertime.NotLinked);
             return;
         }
 
@@ -53,10 +51,7 @@ public class BeertimeCommand(
 
         if (existing is not null)
         {
-            await bot.SendMessage(
-                dmChatId,
-                "Раунд уже идёт! Загляни в личку, чтобы выбрать слоты, или жди итогов в чате."
-            );
+            await bot.SendMessage(dmChatId, BotMessages.Beertime.RoundInProgress);
             return;
         }
 
@@ -107,14 +102,12 @@ public class BeertimeCommand(
         TelegramUser me = await bot.GetMe();
         string deepLink = $"https://t.me/{me.Username}?start={groupChatId}";
         InlineKeyboardMarkup keyboard = new(
-            InlineKeyboardButton.WithUrl("🍺 Участвовать", deepLink)
+            InlineKeyboardButton.WithUrl(BotMessages.Beertime.JoinButton, deepLink)
         );
 
         await bot.SendMessage(
             groupChatId,
-            $"🍺 *Beertime!* {user.Name} затеял(а) встречу. "
-                + "Жми кнопку, чтобы выбрать своё время — я соберу всех и предложу лучший слот "
-                + $"(или подведу итог через {deadlineHours}ч).",
+            BotMessages.Beertime.GroupAnnouncement(user.Name, deadlineHours),
             parseMode: ParseMode.Markdown,
             replyMarkup: keyboard
         );

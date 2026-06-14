@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using BeerBot.Data;
 using BeerBot.Models;
+using BeerBot.Resources;
 using BeerBot.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -28,7 +29,7 @@ public class SuggestCommand(
 
         if (request is null)
         {
-            await bot.SendMessage(groupChatId, "Нет активного раунда. Начни в личке: /beertime");
+            await bot.SendMessage(groupChatId, BotMessages.Suggest.NoActiveRound);
             return;
         }
 
@@ -73,10 +74,7 @@ public class SuggestCommand(
 
         if (availabilities.Count == 0)
         {
-            await bot.SendMessage(
-                groupChatId,
-                "Пока никто не выбрал время — нечего предложить. 😔"
-            );
+            await bot.SendMessage(groupChatId, BotMessages.Suggest.NobodyPicked);
             request.Status = MeetingRequestStatus.Closed;
             await db.SaveChangesAsync();
             return;
@@ -99,20 +97,21 @@ public class SuggestCommand(
 
         if (bestSlots.Count == 0)
         {
-            await bot.SendMessage(
-                groupChatId,
-                "Не нашёл общего окна — ни один слот не пересёкся. 😔"
-            );
+            await bot.SendMessage(groupChatId, BotMessages.Suggest.NoOverlap);
         }
         else
         {
             StringBuilder sb = new();
-            sb.AppendLine("🍺 Лучшее время для встречи:");
+            sb.AppendLine(BotMessages.Suggest.BestTimeHeader);
             sb.AppendLine();
             foreach (SuggestedSlot slot in bestSlots)
             {
                 sb.AppendLine(
-                    $"• {FormatSlot(slot)} — свободны {slot.MemberCount}/{availabilities.Count}"
+                    BotMessages.Suggest.SlotLine(
+                        FormatSlot(slot),
+                        slot.MemberCount,
+                        availabilities.Count
+                    )
                 );
             }
 
@@ -120,12 +119,12 @@ public class SuggestCommand(
 
             InputPollOption[] pollOptions = bestSlots
                 .Select(s => new InputPollOption(FormatSlot(s)))
-                .Concat([new InputPollOption("Ни один не подходит")])
+                .Concat([new InputPollOption(BotMessages.Suggest.PollNoneOption)])
                 .ToArray();
 
             await bot.SendPoll(
                 groupChatId,
-                "🍺 Когда встречаемся?",
+                BotMessages.Suggest.PollQuestion,
                 pollOptions,
                 isAnonymous: false
             );

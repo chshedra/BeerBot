@@ -1,6 +1,7 @@
 using BeerBot.Commands;
 using BeerBot.Data;
 using BeerBot.Models;
+using BeerBot.Resources;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
@@ -82,10 +83,7 @@ public class BotUpdateHandler(
         switch (command)
         {
             case "/beertime":
-                await bot.SendMessage(
-                    message.Chat.Id,
-                    "Напиши мне /beertime в личку, чтобы начать раунд 🍺"
-                );
+                await bot.SendMessage(message.Chat.Id, BotMessages.Registration.DmToStart);
                 break;
             case "/status":
                 await status.ExecuteAsync(message);
@@ -104,13 +102,7 @@ public class BotUpdateHandler(
 
         await bot.SendMessage(
             groupChatId,
-            "🍺 *Я пивной бот!*\n\n"
-                + "Помогаю найти время и бахнуть пивка.\n\n"
-                + "Как это работает:\n"
-                + "1. Каждый жмёт кнопку ниже и стартует меня в личке.\n"
-                + "2. Любой пишет мне /beertime в личку, чтобы начать раунд.\n"
-                + "3. Все выбирают своё время кнопками — я нахожу пересечение и кидаю опрос сюда.\n\n"
-                + $"Регистрация: [нажми тут]({deepLink})",
+            BotMessages.Registration.Welcome(deepLink),
             parseMode: ParseMode.Markdown
         );
     }
@@ -145,11 +137,7 @@ public class BotUpdateHandler(
         }
 
         // Slots are entered with buttons now — nudge free-text users.
-        await bot.SendMessage(
-            message.Chat.Id,
-            "Время выбирается кнопками 🍺 Напиши /beertime, чтобы начать раунд, "
-                + "или жди приглашения, когда его начнёт кто-то из группы."
-        );
+        await bot.SendMessage(message.Chat.Id, BotMessages.Registration.UseButtons);
     }
 
     private async Task HandleStartAsync(Message message, TelegramUser from, string text)
@@ -188,10 +176,7 @@ public class BotUpdateHandler(
 
         if (user.GroupChatId == 0)
         {
-            await bot.SendMessage(
-                message.Chat.Id,
-                "Привет! Открой меня по кнопке из группы, чтобы я привязал тебя к ней. 🍺"
-            );
+            await bot.SendMessage(message.Chat.Id, BotMessages.Registration.OpenFromGroup);
             return;
         }
 
@@ -201,10 +186,7 @@ public class BotUpdateHandler(
 
         if (request is null)
         {
-            await bot.SendMessage(
-                message.Chat.Id,
-                "Готово! 🍺 Напиши /beertime, чтобы начать раунд, или жди приглашения от группы."
-            );
+            await bot.SendMessage(message.Chat.Id, BotMessages.Registration.LinkedNoRound);
             return;
         }
 
@@ -214,10 +196,7 @@ public class BotUpdateHandler(
 
         if (alreadySubmitted)
         {
-            await bot.SendMessage(
-                message.Chat.Id,
-                "Спасибо, твоё время уже записано на этот раунд! 🍺"
-            );
+            await bot.SendMessage(message.Chat.Id, BotMessages.Registration.AlreadySubmitted);
             return;
         }
 
