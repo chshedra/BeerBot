@@ -27,6 +27,8 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
     private const string DonePrefix = "x"; // x:{requestId} -> submit
     private const string DateFormat = "yyyyMMdd";
 
+    private static readonly CultureInfo Russian = CultureInfo.GetCultureInfo("ru-RU");
+
     public async Task SendDayPickerAsync(long chatId, int requestId)
     {
         await bot.SendMessage(
@@ -303,7 +305,8 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
     private static string FormatDay(DateOnly date)
     {
         DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
-        string label = date.ToString("ddd d MMM", CultureInfo.InvariantCulture);
+        string label = date.ToString("ddd d MMM", Russian);
+        label = char.ToUpper(label[0], Russian) + label[1..];
 
         if (date == today)
         {
