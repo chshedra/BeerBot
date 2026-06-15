@@ -13,7 +13,7 @@ public class Worker(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("Worker started — beginning long-poll loop");
+        logger.LogInformation("Worker started, beginning long-poll loop");
         int offset = 0;
 
         while (!stoppingToken.IsCancellationRequested)

@@ -23,9 +23,8 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
     // Callback-data prefixes (kept short — Telegram caps callback data at 64 bytes).
     private const string DayPrefix = "d"; // d:{requestId}:{yyyyMMdd}  -> open hour picker
     private const string HourPrefix = "h"; // h:{requestId}:{yyyyMMdd}:{HH} -> toggle slot
-    private const string BackPrefix = "b"; // b:{requestId}             -> back to day picker
-    private const string DonePrefix = "x"; // x:{requestId}             -> submit
-
+    private const string BackPrefix = "b"; // b:{requestId} -> back to day picker
+    private const string DonePrefix = "x"; // x:{requestId} -> submit
     private const string DateFormat = "yyyyMMdd";
 
     public async Task SendDayPickerAsync(long chatId, int requestId)
@@ -59,6 +58,7 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         MeetingRequest? request = await db.MeetingRequests.FirstOrDefaultAsync(r =>
             r.Id == requestId
         );
+
         if (request is null || request.Status != MeetingRequestStatus.Open)
         {
             await Answer(query, BotMessages.Wizard.RoundClosed);
@@ -304,14 +304,17 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
     {
         DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
         string label = date.ToString("ddd d MMM", CultureInfo.InvariantCulture);
+
         if (date == today)
         {
             return BotMessages.Wizard.Today(label);
         }
+
         if (date == today.AddDays(1))
         {
             return BotMessages.Wizard.Tomorrow(label);
         }
+
         return label;
     }
 

@@ -142,7 +142,6 @@ public class BotUpdateHandler(
 
     private async Task HandleStartAsync(Message message, TelegramUser from, string text)
     {
-        // Extract the start payload: "/start -1001234567890" → group chat id
         long? groupId = null;
         string[] parts = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 2 && long.TryParse(parts[1], out long parsed))
@@ -200,7 +199,6 @@ public class BotUpdateHandler(
             return;
         }
 
-        // Active round running — drop them straight into the wizard.
         await wizard.SendDayPickerAsync(message.Chat.Id, request.Id);
     }
 }
