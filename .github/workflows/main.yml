@@ -10,6 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout
@@ -29,15 +32,37 @@ jobs:
       - name: Test
         run: dotnet test --configuration Release --no-build --verbosity normal
 
-      - name: Build Docker image
-        run: docker build -f BeerBot/Dockerfile -t beerbot:${{ github.sha }} BeerBot
-
-      - name: Export image to tarball
-        run: docker save beerbot:${{ github.sha }} -o beerbot-image.tar
-
-      - name: Upload image artifact
-        uses: actions/upload-artifact@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with: 
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build and push
+        uses: docker/build-push-action@v6
         with:
-          name: beerbot-docker-image
-          path: beerbot-image.tar
-          retention-days: 7
+          context: Beerbot
+          file: BeerBot/Dockerfile
+          push: true
+          tags: | 
+            ghcr.io/chshedra/beerbot:latest
+            ghcr.io/chshedra/beerbot:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with: 
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/beerbot
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
+
