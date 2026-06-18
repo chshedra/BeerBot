@@ -14,8 +14,10 @@ using User = BeerBot.Models.User;
 
 namespace BeerBot.Commands;
 
-// Invoked from a private chat: a registered group member runs /beertime to start a round.
-// The initiator picks their own slots first, then everyone else is invited.
+/// <summary>
+/// Invoked from a private chat: a registered group member runs /beertime to start a round.
+/// The initiator picks their own slots first, then everyone else is invited.
+/// </summary>
 public class BeertimeCommand(
     BeerBotDbContext db,
     ITelegramBotClient bot,
@@ -24,6 +26,13 @@ public class BeertimeCommand(
     ILogger<BeertimeCommand> logger
 )
 {
+    /// <summary>
+    /// Starts a new meeting round for the initiator's group: creates the request, sends the
+    /// initiator and every registered member the availability wizard, and posts a join button
+    /// in the group for members who have not started the bot yet. No-ops if the sender is not
+    /// linked to a group or a round is already open.
+    /// </summary>
+    /// <param name="message">The /beertime message received in a private chat.</param>
     public async Task ExecuteAsync(Message message)
     {
         TelegramUser? from = message.From;

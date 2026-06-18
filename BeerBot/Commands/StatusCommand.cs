@@ -9,12 +9,21 @@ using User = BeerBot.Models.User;
 
 namespace BeerBot.Commands;
 
+/// <summary>
+/// Handles /status in a group chat: reports who has replied to the open round and who is
+/// still pending.
+/// </summary>
 public class StatusCommand(
     BeerBotDbContext db,
     ITelegramBotClient bot,
     ILogger<StatusCommand> logger
 )
 {
+    /// <summary>
+    /// Posts a status message to the group listing each member as replied or waiting for the
+    /// currently open round. No-ops with a notice if there is no open round.
+    /// </summary>
+    /// <param name="message">The /status message received in the group chat.</param>
     public async Task ExecuteAsync(Message message)
     {
         long groupChatId = message.Chat.Id;

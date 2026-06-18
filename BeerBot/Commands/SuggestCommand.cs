@@ -12,6 +12,10 @@ using User = BeerBot.Models.User;
 
 namespace BeerBot.Commands;
 
+/// <summary>
+/// Builds and posts the meeting suggestion (best shared time windows plus a poll) to the group.
+/// Triggered manually via /suggest, on the final submission, or by the deadline scheduler.
+/// </summary>
 public class SuggestCommand(
     BeerBotDbContext db,
     ITelegramBotClient bot,
@@ -19,6 +23,11 @@ public class SuggestCommand(
     ILogger<SuggestCommand> logger
 )
 {
+    /// <summary>
+    /// Handles /suggest in a group: immediately posts a suggestion for the open round,
+    /// regardless of how many members have replied. No-ops with a notice if no round is open.
+    /// </summary>
+    /// <param name="message">The /suggest message received in the group chat.</param>
     public async Task ExecuteAsync(Message message)
     {
         long groupChatId = message.Chat.Id;
@@ -37,8 +46,13 @@ public class SuggestCommand(
         await PostSuggestionAsync(request, groupChatId);
     }
 
-    // Closes and posts the suggestion if everyone has submitted or the deadline passed.
-    // Returns true if the request was closed.
+    /// <summary>
+    /// Posts the suggestion and closes the round if every member has submitted or the deadline
+    /// has passed; otherwise does nothing.
+    /// </summary>
+    /// <param name="request">The open meeting request to evaluate.</param>
+    /// <param name="deadlinePassed">True if the request's deadline has elapsed.</param>
+    /// <returns>True if the request was closed; false if it is still waiting for replies.</returns>
     internal async Task<bool> PostIfReadyAsync(MeetingRequest request, bool deadlinePassed)
     {
         List<User> users = await db
@@ -64,6 +78,13 @@ public class SuggestCommand(
         return true;
     }
 
+    /// <summary>
+    /// Gathers all submitted availabilities, computes the best overlapping windows, and posts a
+    /// summary message plus a native poll to the group, then marks the request closed. Posts a
+    /// fallback notice if nobody picked or no window overlapped.
+    /// </summary>
+    /// <param name="request">The request to summarize and close.</param>
+    /// <param name="groupChatId">The group chat to post the suggestion to.</param>
     internal async Task PostSuggestionAsync(MeetingRequest request, long groupChatId)
     {
         List<Availability> availabilities = await db
@@ -135,6 +156,7 @@ public class SuggestCommand(
         logger.LogInformation("MeetingRequest {Id} closed after suggestion posted", request.Id);
     }
 
+    /// <summary>Formats a suggested slot as a short human-readable "Day HH:mm–HH:mm" string.</summary>
     private static string FormatSlot(SuggestedSlot s) =>
         $"{s.Day.ToString("ddd d MMM", CultureInfo.InvariantCulture)} {s.Start:HH:mm}–{s.End:HH:mm}";
 }

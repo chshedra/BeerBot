@@ -11,9 +11,11 @@ using User = BeerBot.Models.User;
 
 namespace BeerBot.Services;
 
-// Drives the inline-button availability wizard: pick a day, multi-select hourly slots,
-// repeat for other days, then Done. State lives entirely in the DB (AvailabilitySlot rows)
-// and in the rendered keyboard, so a restart never strands a half-finished user.
+/// <summary>
+/// Drives the inline-button availability wizard: pick a day, multi-select hourly slots,
+/// repeat for other days, then Done. State lives entirely in the DB (AvailabilitySlot rows)
+/// and in the rendered keyboard, so a restart never strands a half-finished user.
+/// </summary>
 public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<SlotWizard> logger)
 {
     private const int DaysToOffer = 7;
@@ -29,6 +31,11 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
 
     private static readonly CultureInfo Russian = CultureInfo.GetCultureInfo("ru-RU");
 
+    /// <summary>
+    /// Sends the day-picker keyboard (next 7 days) to a chat to begin the wizard for a round.
+    /// </summary>
+    /// <param name="chatId">The chat to send the picker to.</param>
+    /// <param name="requestId">The meeting request the selections belong to.</param>
     public async Task SendDayPickerAsync(long chatId, int requestId)
     {
         await bot.SendMessage(
@@ -38,7 +45,12 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         );
     }
 
-    // Returns the requestId if the user just submitted (pressed Done), else null.
+    /// <summary>
+    /// Handles a wizard button press: opening the hour picker, toggling an hour, going back to
+    /// the day picker, or submitting. Always answers the callback to clear the button spinner.
+    /// </summary>
+    /// <param name="query">The callback query from a wizard inline button.</param>
+    /// <returns>The request id if the user just submitted (pressed Done); otherwise null.</returns>
     public async Task<int?> HandleCallbackAsync(CallbackQuery query)
     {
         string data = query.Data ?? string.Empty;
@@ -105,6 +117,14 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         }
     }
 
+    /// <summary>
+    /// Edits the wizard message into the hour picker for the selected day, pre-checking hours the
+    /// user has already chosen.
+    /// </summary>
+    /// <param name="message">The wizard message to edit.</param>
+    /// <param name="requestId">The meeting request id.</param>
+    /// <param name="userId">The id of the user picking slots.</param>
+    /// <param name="dateToken">The selected day encoded as yyyyMMdd.</param>
     private async Task ShowHourPickerAsync(
         Message message,
         int requestId,
@@ -123,6 +143,15 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         );
     }
 
+    /// <summary>
+    /// Adds or removes the <see cref="AvailabilitySlot"/> for the given day and hour (toggling it),
+    /// then refreshes the hour keyboard to reflect the change.
+    /// </summary>
+    /// <param name="message">The wizard message whose keyboard is updated.</param>
+    /// <param name="request">The open meeting request.</param>
+    /// <param name="userId">The id of the user toggling the hour.</param>
+    /// <param name="dateToken">The day encoded as yyyyMMdd.</param>
+    /// <param name="hourToken">The hour-of-day to toggle.</param>
     private async Task ToggleHourAsync(
         Message message,
         MeetingRequest request,
@@ -170,6 +199,15 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         );
     }
 
+    /// <summary>
+    /// Marks the user's availability as submitted, confirming in the chat. Refuses with a notice
+    /// if the user has not selected any slot yet.
+    /// </summary>
+    /// <param name="query">The Done callback query.</param>
+    /// <param name="message">The wizard message to finalize.</param>
+    /// <param name="request">The meeting request being answered.</param>
+    /// <param name="userId">The id of the submitting user.</param>
+    /// <returns>The request id on a successful submission; otherwise null.</returns>
     private async Task<int?> SubmitAsync(
         CallbackQuery query,
         Message message,
@@ -206,6 +244,13 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         return request.Id;
     }
 
+    /// <summary>
+    /// Returns the user's <see cref="Availability"/> for the request, creating and persisting an
+    /// empty one if it does not exist yet.
+    /// </summary>
+    /// <param name="requestId">The meeting request id.</param>
+    /// <param name="userId">The user id.</param>
+    /// <returns>The existing or newly created availability.</returns>
     private async Task<Availability> GetOrCreateAvailabilityAsync(int requestId, int userId)
     {
         Availability? availability = await db.Availabilities.FirstOrDefaultAsync(a =>
@@ -222,6 +267,13 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         return availability;
     }
 
+    /// <summary>
+    /// Returns the set of hours-of-day the user has already selected for the given day.
+    /// </summary>
+    /// <param name="requestId">The meeting request id.</param>
+    /// <param name="userId">The user id.</param>
+    /// <param name="date">The day to read selections for.</param>
+    /// <returns>The selected start hours (0–23).</returns>
     private async Task<HashSet<int>> GetSelectedHoursAsync(int requestId, int userId, DateOnly date)
     {
         List<int> hours = await db
@@ -236,6 +288,11 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         return hours.ToHashSet();
     }
 
+    /// <summary>
+    /// Builds the day-picker keyboard: one button per upcoming day plus a Done button.
+    /// </summary>
+    /// <param name="requestId">The meeting request id, embedded in callback data.</param>
+    /// <returns>The inline keyboard markup.</returns>
     private static InlineKeyboardMarkup BuildDayKeyboard(int requestId)
     {
         DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -262,6 +319,14 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         return new InlineKeyboardMarkup(rows);
     }
 
+    /// <summary>
+    /// Builds the hour-picker keyboard for a day: hour buttons (three per row, checked when
+    /// selected) plus Back and Done buttons.
+    /// </summary>
+    /// <param name="requestId">The meeting request id, embedded in callback data.</param>
+    /// <param name="date">The day the hours belong to.</param>
+    /// <param name="selected">Hours already selected, shown with a check mark.</param>
+    /// <returns>The inline keyboard markup.</returns>
     private static InlineKeyboardMarkup BuildHourKeyboard(
         int requestId,
         DateOnly date,
@@ -299,9 +364,14 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         return new InlineKeyboardMarkup(rows);
     }
 
+    /// <summary>Parses a yyyyMMdd callback token back into a <see cref="DateOnly"/>.</summary>
     private static DateOnly ParseDate(string token) =>
         DateOnly.ParseExact(token, DateFormat, CultureInfo.InvariantCulture);
 
+    /// <summary>
+    /// Formats a day for a button label in Russian, using "Today"/"Tomorrow" prefixes where
+    /// applicable.
+    /// </summary>
     private static string FormatDay(DateOnly date)
     {
         DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -321,6 +391,11 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         return label;
     }
 
+    /// <summary>
+    /// Answers a callback query to clear the button spinner, optionally showing a toast.
+    /// </summary>
+    /// <param name="query">The callback query to answer.</param>
+    /// <param name="text">Optional toast text to display to the user.</param>
     private Task Answer(CallbackQuery query, string? text = null) =>
         bot.AnswerCallbackQuery(query.Id, text);
 }

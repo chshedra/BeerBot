@@ -5,12 +5,22 @@ using Telegram.Bot.Types;
 
 namespace BeerBot;
 
+/// <summary>
+/// Background service that runs the Telegram long-polling loop, fetching updates and
+/// dispatching each to a <see cref="BotUpdateHandler"/>. Errors are logged so the loop
+/// keeps polling.
+/// </summary>
 public class Worker(
     ITelegramBotClient bot,
     IServiceScopeFactory scopeFactory,
     ILogger<Worker> logger
 ) : BackgroundService
 {
+    /// <summary>
+    /// Long-polls Telegram for updates until cancellation, dispatching each update for
+    /// processing and advancing the offset. Backs off briefly after a polling error.
+    /// </summary>
+    /// <param name="stoppingToken">Signals when the host is shutting down.</param>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("Worker started, beginning long-poll loop");
@@ -46,6 +56,12 @@ public class Worker(
         logger.LogInformation("Worker stopped");
     }
 
+    /// <summary>
+    /// Processes a single update in its own DI scope so each gets a fresh scoped handler and
+    /// <c>DbContext</c>. Unhandled errors are logged and swallowed to protect the poll loop.
+    /// </summary>
+    /// <param name="update">The Telegram update to handle.</param>
+    /// <param name="ct">Cancellation token for the operation.</param>
     private async Task ProcessUpdateAsync(Update update, CancellationToken ct)
     {
         using IServiceScope scope = scopeFactory.CreateScope();

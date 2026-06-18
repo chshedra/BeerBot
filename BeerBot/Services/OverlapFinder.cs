@@ -2,10 +2,23 @@ using BeerBot.Models;
 
 namespace BeerBot.Services;
 
+/// <summary>One member's submitted slots, fed into <see cref="OverlapFinder"/>.</summary>
+/// <param name="UserName">Display name of the member.</param>
+/// <param name="Slots">The time slots the member is free.</param>
 public record UserAvailability(string UserName, List<TimeSlot> Slots);
 
+/// <summary>A suggested meeting window and how many members are free during it.</summary>
+/// <param name="Day">Date of the window.</param>
+/// <param name="Start">Inclusive start time.</param>
+/// <param name="End">Exclusive end time.</param>
+/// <param name="MemberCount">Number of members free for the whole window.</param>
 public record SuggestedSlot(DateOnly Day, TimeOnly Start, TimeOnly End, int MemberCount);
 
+/// <summary>
+/// Pure scheduling logic that finds the best shared time windows from members' availability.
+/// Splits offered days into 30-minute blocks, scores each by how many members are free
+/// (with an evening bonus), and returns the top non-overlapping windows.
+/// </summary>
 public class OverlapFinder
 {
     private static readonly TimeOnly EveningStart = new(18, 0);
@@ -17,6 +30,13 @@ public class OverlapFinder
     // midnight and TimeOnly wraps, so we stop here to keep all blocks within one day.
     private const int LastBlockStartMinutes = 23 * 60;
 
+    /// <summary>
+    /// Computes up to three non-overlapping meeting windows, ranked by how many members are free
+    /// during each (with a bonus for evening blocks). Only dates at least one member offered are
+    /// considered.
+    /// </summary>
+    /// <param name="members">Each member's submitted availability.</param>
+    /// <returns>The top non-overlapping windows, best first; empty if there is no overlap.</returns>
     public List<SuggestedSlot> FindBestSlots(List<UserAvailability> members)
     {
         if (members.Count == 0)

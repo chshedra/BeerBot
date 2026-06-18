@@ -11,6 +11,10 @@ using TelegramUser = Telegram.Bot.Types.User;
 
 namespace BeerBot.Services;
 
+/// <summary>
+/// Routes incoming Telegram updates: callback queries go to the <see cref="SlotWizard"/>, and
+/// messages are dispatched to group- or private-chat handlers (commands, registration, wizard).
+/// </summary>
 public class BotUpdateHandler(
     BeerBotDbContext db,
     ITelegramBotClient bot,
@@ -21,6 +25,11 @@ public class BotUpdateHandler(
     ILogger<BotUpdateHandler> logger
 )
 {
+    /// <summary>
+    /// Entry point for a single update: dispatches callback queries to the wizard and messages
+    /// to the group or private chat handler based on chat type.
+    /// </summary>
+    /// <param name="update">The Telegram update to route.</param>
     public async Task HandleAsync(Update update)
     {
         logger.LogInformation("Update received: {Type}", update.Type);
@@ -46,6 +55,11 @@ public class BotUpdateHandler(
         }
     }
 
+    /// <summary>
+    /// Delegates a wizard button press to the <see cref="SlotWizard"/>; if it signals a
+    /// submission, checks whether the round is now complete and posts the suggestion if so.
+    /// </summary>
+    /// <param name="callback">The callback query from an inline button.</param>
     private async Task HandleCallbackAsync(CallbackQuery callback)
     {
         int? submittedRequestId = await wizard.HandleCallbackAsync(callback);
@@ -64,6 +78,11 @@ public class BotUpdateHandler(
         }
     }
 
+    /// <summary>
+    /// Handles a group-chat message: sends the welcome when the bot is added, and routes the
+    /// /beertime, /status, and /suggest commands.
+    /// </summary>
+    /// <param name="message">The group-chat message.</param>
     private async Task HandleGroupMessageAsync(Message message)
     {
         // Service message fired when members (possibly the bot itself) are added to the group.
@@ -94,6 +113,10 @@ public class BotUpdateHandler(
         }
     }
 
+    /// <summary>
+    /// Posts the welcome message with a registration deep-link to the given group.
+    /// </summary>
+    /// <param name="groupChatId">The group chat to welcome.</param>
     private async Task SendWelcomeAsync(long groupChatId)
     {
         logger.LogInformation("Bot added to group {GroupChatId}; sending welcome", groupChatId);
@@ -107,6 +130,11 @@ public class BotUpdateHandler(
         );
     }
 
+    /// <summary>
+    /// Handles a private-chat message: runs /start registration, starts a round on /beertime,
+    /// and nudges any other free text toward the buttons.
+    /// </summary>
+    /// <param name="message">The private-chat message.</param>
     private async Task HandlePrivateMessageAsync(Message message)
     {
         if (string.IsNullOrWhiteSpace(message.Text))
@@ -140,6 +168,14 @@ public class BotUpdateHandler(
         await bot.SendMessage(message.Chat.Id, BotMessages.Registration.UseButtons);
     }
 
+    /// <summary>
+    /// Processes a "/start &lt;groupChatId&gt;" deep link: registers or updates the user, links
+    /// them to the group, and either acknowledges or, if a round is open and unanswered, sends
+    /// the availability wizard.
+    /// </summary>
+    /// <param name="message">The /start message.</param>
+    /// <param name="from">The Telegram user who sent it.</param>
+    /// <param name="text">The raw message text, including the deep-link payload.</param>
     private async Task HandleStartAsync(Message message, TelegramUser from, string text)
     {
         long? groupId = null;

@@ -1,11 +1,14 @@
 namespace BeerBot.Resources;
 
-// All user-facing Telegram text lives here, grouped by feature.
-// Literal text is a const; parameterized text is a static helper so the
-// interpolation stays next to the wording. Log templates stay inline at the
-// call site — they are structured-logging messages, not UI.
+/// <summary>
+/// All user-facing Telegram text lives here, grouped by feature.
+/// Literal text is a const; parameterized text is a static helper so the
+/// interpolation stays next to the wording. Log templates stay inline at the
+/// call site — they are structured-logging messages, not UI.
+/// </summary>
 public static class BotMessages
 {
+    /// <summary>Text for the /beertime round-start flow.</summary>
     public static class Beertime
     {
         public const string NotLinked =
@@ -23,6 +26,7 @@ public static class BotMessages
             + $"(или подведу итог через {deadlineHours}ч).";
     }
 
+    /// <summary>Text for the inline-button availability wizard.</summary>
     public static class Wizard
     {
         public const string PickDay = "🍺 Когда сможешь? Выбери день:";
@@ -45,6 +49,7 @@ public static class BotMessages
         public static string Tomorrow(string label) => $"Завтра ({label})";
     }
 
+    /// <summary>Text for the suggestion and poll posted to the group.</summary>
     public static class Suggest
     {
         public const string NoActiveRound = "Нет активного раунда. Начни в личке: /beertime";
@@ -63,6 +68,7 @@ public static class BotMessages
             $"• {slot} — свободны {memberCount}/{total}";
     }
 
+    /// <summary>Text for the /status report.</summary>
     public static class Status
     {
         public const string NoActiveRequest =
@@ -80,6 +86,7 @@ public static class BotMessages
         public static string WaitingForMore(int count) => $"\nWaiting for {count} more.";
     }
 
+    /// <summary>Text for registration, deep-link onboarding, and the group welcome.</summary>
     public static class Registration
     {
         public const string DmToStart = "Напиши мне /beertime в личку, чтобы начать раунд 🍺";
