@@ -23,6 +23,8 @@ public class SuggestCommand(
     ILogger<SuggestCommand> logger
 )
 {
+    private static readonly CultureInfo Russian = CultureInfo.GetCultureInfo("ru-RU");
+
     /// <summary>
     /// Handles /suggest in a group: immediately posts a suggestion for the open round,
     /// regardless of how many members have replied. No-ops with a notice if no round is open.
@@ -172,5 +174,5 @@ public class SuggestCommand(
 
     /// <summary>Formats a suggested slot as a short human-readable "Day HH:mm–HH:mm" string.</summary>
     private static string FormatSlot(SuggestedSlot s) =>
-        $"{s.Day.ToString("ddd d MMM", CultureInfo.InvariantCulture)} {s.Start:HH:mm}–{s.End:HH:mm}";
+        $"{s.Day.ToString("ddd d MMM", Russian)} {s.Start:HH:mm}";
 }
