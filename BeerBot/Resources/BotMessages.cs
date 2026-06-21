@@ -37,6 +37,10 @@ public static class BotMessages
         public const string DoneButton = "✅ Готово";
         public const string BackToDaysButton = "⬅ Дни";
 
+        public const string MoreDaysQuestion = "Хочешь выбрать ещё один день?";
+        public const string MoreDaysButton = "➕ Ещё день";
+        public const string FinishButton = "✅ Готово, сохранить";
+
         public static string PickHours(string day) =>
             $"🍺 {day} — выбери удобные часы (можно несколько):";
 

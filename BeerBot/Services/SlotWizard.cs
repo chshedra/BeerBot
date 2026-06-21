@@ -26,7 +26,8 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
     private const string DayPrefix = "d"; // d:{requestId}:{yyyyMMdd}  -> open hour picker
     private const string HourPrefix = "h"; // h:{requestId}:{yyyyMMdd}:{HH} -> toggle slot
     private const string BackPrefix = "b"; // b:{requestId} -> back to day picker
-    private const string DonePrefix = "x"; // x:{requestId} -> submit
+    private const string DonePrefix = "x"; // x:{requestId} -> ask "select more days?"
+    private const string FinishPrefix = "f"; // f:{requestId} -> submit
     private const string DateFormat = "yyyyMMdd";
 
     private static readonly CultureInfo Russian = CultureInfo.GetCultureInfo("ru-RU");
@@ -109,6 +110,11 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
                 return null;
 
             case DonePrefix:
+                await ShowMoreDaysPromptAsync(message, requestId);
+                await Answer(query);
+                return null;
+
+            case FinishPrefix:
                 return await SubmitAsync(query, message, request, user.Id);
 
             default:
@@ -196,6 +202,22 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
             message.Chat.Id,
             message.MessageId,
             replyMarkup: BuildHourKeyboard(request.Id, date, selected)
+        );
+    }
+
+    /// <summary>
+    /// Edits the wizard message into the "select more days?" prompt: choosing "more" returns the
+    /// user to the day picker (keeping their selections), choosing "finish" submits.
+    /// </summary>
+    /// <param name="message">The wizard message to edit.</param>
+    /// <param name="requestId">The meeting request id.</param>
+    private async Task ShowMoreDaysPromptAsync(Message message, int requestId)
+    {
+        await bot.EditMessageText(
+            message.Chat.Id,
+            message.MessageId,
+            BotMessages.Wizard.MoreDaysQuestion,
+            replyMarkup: BuildMoreDaysKeyboard(requestId)
         );
     }
 
@@ -317,6 +339,30 @@ public class SlotWizard(BeerBotDbContext db, ITelegramBotClient bot, ILogger<Slo
         ]);
 
         return new InlineKeyboardMarkup(rows);
+    }
+
+    /// <summary>
+    /// Builds the "select more days?" keyboard: one button to return to the day picker and one to
+    /// finish and submit.
+    /// </summary>
+    /// <param name="requestId">The meeting request id, embedded in callback data.</param>
+    /// <returns>The inline keyboard markup.</returns>
+    private static InlineKeyboardMarkup BuildMoreDaysKeyboard(int requestId)
+    {
+        return new InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton.WithCallbackData(
+                    BotMessages.Wizard.MoreDaysButton,
+                    $"{BackPrefix}:{requestId}"
+                ),
+            ],
+            [
+                InlineKeyboardButton.WithCallbackData(
+                    BotMessages.Wizard.FinishButton,
+                    $"{FinishPrefix}:{requestId}"
+                ),
+            ],
+        ]);
     }
 
     /// <summary>
