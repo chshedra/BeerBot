@@ -87,6 +87,24 @@ public class SuggestCommand(
     /// <param name="groupChatId">The group chat to post the suggestion to.</param>
     internal async Task PostSuggestionAsync(MeetingRequest request, long groupChatId)
     {
+        // Atomically claim the round by flipping Open -> Closed in a single statement. The submit
+        // handler, the deadline scheduler, and /suggest can all reach here concurrently (each in its
+        // own DbContext scope); the conditional update lets exactly one of them win, so the group
+        // never gets a duplicate suggestion + poll. A zero-row result means someone else already
+        // posted.
+        int claimed = await db
+            .MeetingRequests.Where(r => r.Id == request.Id && r.Status == MeetingRequestStatus.Open)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, MeetingRequestStatus.Closed));
+
+        if (claimed == 0)
+        {
+            logger.LogInformation(
+                "MeetingRequest {Id}: already closed by another trigger, skipping suggestion",
+                request.Id
+            );
+            return;
+        }
+
         List<Availability> availabilities = await db
             .Availabilities.Include(a => a.User)
             .Include(a => a.Slots)
@@ -96,8 +114,6 @@ public class SuggestCommand(
         if (availabilities.Count == 0)
         {
             await bot.SendMessage(groupChatId, BotMessages.Suggest.NobodyPicked);
-            request.Status = MeetingRequestStatus.Closed;
-            await db.SaveChangesAsync();
             return;
         }
 
@@ -151,8 +167,6 @@ public class SuggestCommand(
             );
         }
 
-        request.Status = MeetingRequestStatus.Closed;
-        await db.SaveChangesAsync();
         logger.LogInformation("MeetingRequest {Id} closed after suggestion posted", request.Id);
     }
 

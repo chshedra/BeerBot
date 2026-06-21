@@ -66,15 +66,19 @@ public class OverlapFinder
                     if (IsFree(member, day, blockStart, blockEnd))
                     {
                         score += 1.0;
-                        if (blockStart >= EveningStart && blockStart < EveningEnd)
-                        {
-                            score += 0.5;
-                        }
                     }
                 }
 
                 if (score > 0)
                 {
+                    // Evening preference is a flat per-block bonus (a tiebreaker), applied once —
+                    // not per free member — so it can never rank a block with fewer members above
+                    // one with more.
+                    if (blockStart >= EveningStart && blockStart < EveningEnd)
+                    {
+                        score += 0.5;
+                    }
+
                     scores[(day, blockStart)] = score;
                 }
             }
